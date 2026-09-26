@@ -19,13 +19,15 @@
   }
 
   *{box-sizing:border-box;}
+  html,body{touch-action:manipulation;} /* evita che il doppio tap venga letto come "zoom" dal browser */
   body{
     margin:0; background:var(--chalk); color:var(--ink);
     font-family:'Barlow',system-ui,-apple-system,sans-serif;
     padding-inline:16px; padding-block:14px;
+    -webkit-tap-highlight-color:transparent;
   }
   h1,h2,h3{margin:0; text-wrap:balance;}
-  button{font-family:inherit; cursor:pointer;}
+  button{font-family:inherit; cursor:pointer; touch-action:manipulation;}
   input{font-family:inherit;}
 
   .shell{max-width:460px; margin-inline:auto; display:flex; flex-direction:column; gap:14px;}
@@ -87,6 +89,7 @@
     background:var(--surface); border:1px solid var(--line); text-align:center;
     display:flex; flex-direction:column; align-items:center; gap:6px;
     -webkit-user-select:none; user-select:none; overflow:hidden;
+    touch-action:manipulation;
   }
   .score-tile.teamA::before, .score-tile.teamB::before{
     content:""; position:absolute; top:0; left:0; right:0; height:5px;
@@ -220,10 +223,26 @@
   .winner-card h2{font-family:'Barlow Condensed',sans-serif; font-weight:900; font-size:28px; text-transform:uppercase; color:var(--cork); margin-bottom:4px;}
   .winner-card p{color:var(--ink-soft); font-size:13px; margin:0 0 16px;}
 
+  /* Torneo: progresso, classifica, calendario */
+  .progress-text{font-size:11px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.6px; font-weight:700; text-align:center; margin-bottom:10px;}
+  .standings-table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  .standings-table th{font-size:10px; text-transform:uppercase; letter-spacing:0.4px; color:var(--ink-soft); padding:6px 4px; text-align:center; border-bottom:1px solid var(--line);}
+  .standings-table th:nth-child(2){text-align:left;}
+  .standings-table td{padding:7px 4px; text-align:center; border-bottom:1px solid var(--line); font-weight:600;}
+  .standings-table td:nth-child(2){text-align:left; font-weight:700;}
+  .standings-table tr:first-child td{color:var(--cork);}
+  .final-banner{
+    background:var(--cork-soft); border:1px solid var(--cork); border-radius:14px; padding:14px;
+    text-align:center; font-weight:800; color:var(--cork); text-transform:uppercase; letter-spacing:0.4px; font-size:13px;
+  }
+  .match-card.done{opacity:0.45;}
+  .match-card.current{border-color:var(--cork); box-shadow:0 0 0 1px var(--cork) inset;}
+
   @media (prefers-reduced-motion: reduce){ *{transition:none !important;} }
 </style>
 </head>
 <body>
+
 <div class="shell">
   <div class="header">
     <div class="ball-mark" aria-hidden="true"></div>
@@ -234,12 +253,102 @@
   </div>
 
   <div class="tabs" role="tablist">
-    <button class="tab" id="tabScoreBtn" role="tab" aria-selected="true">Punteggio</button>
-    <button class="tab" id="tabDrawBtn" role="tab" aria-selected="false">Sorteggio</button>
+    <button class="tab" id="tabTorneoBtn" role="tab" aria-selected="true">Torneo</button>
+    <button class="tab" id="tabLiberaBtn" role="tab" aria-selected="false">Libera</button>
   </div>
 
-  <!-- SCORE PANEL -->
-  <div class="panel" id="panelScore">
+  <!-- ============ TORNEO PANEL ============ -->
+  <div class="panel" id="panelTorneo">
+
+    <!-- SETUP -->
+    <div id="torneoSetup">
+      <div class="card">
+        <div class="card-title">Giocatori</div>
+        <div class="add-row">
+          <input id="tPlayerInput" placeholder="Nome giocatore" maxlength="20">
+          <button id="tAddPlayerBtn">Aggiungi</button>
+        </div>
+        <div class="players" id="tPlayerList" style="margin-top:10px;"></div>
+        <div class="empty-note" id="tEmptyNote">Aggiungi almeno 2 giocatori per il girone.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Formato</div>
+        <div class="segmented" id="tFormatSegmented">
+          <button data-format="singolo" aria-pressed="true">Singolo</button>
+          <button data-format="doppio" aria-pressed="false">Doppio</button>
+        </div>
+        <div class="empty-note" id="tDoublesWarning" hidden style="margin-top:8px;">Per il doppio serve un numero pari di giocatori (min. 4).</div>
+      </div>
+
+      <button class="btn primary block" id="tStartBtn">Genera calendario e inizia</button>
+    </div>
+
+    <!-- PLAY -->
+    <div id="torneoPlay" hidden>
+      <div class="card" id="torneoMatchCard">
+        <div class="progress-text" id="tProgressText">Partita 1 di 6 · Turno 1</div>
+        <div class="score-grid">
+          <div class="score-tile teamA" id="tTileA">
+            <div class="serve-badge" id="tServeA" hidden>al servizio</div>
+            <div class="team-label" id="tLabelA">—</div>
+            <div class="digit" id="tDigitA">0</div>
+            <button class="minus-btn" id="tMinusA" aria-label="Togli punto">–</button>
+            <div class="tap-hint">tocca per +1</div>
+          </div>
+          <div class="score-tile teamB" id="tTileB">
+            <div class="serve-badge" id="tServeB" hidden>al servizio</div>
+            <div class="team-label" id="tLabelB">—</div>
+            <div class="digit" id="tDigitB">0</div>
+            <button class="minus-btn" id="tMinusB" aria-label="Togli punto">–</button>
+            <div class="tap-hint">tocca per +1</div>
+          </div>
+        </div>
+        <div class="tb-flag" id="tTbFlag" hidden>TIE-BREAK — primo a 7 punti, 2 di vantaggio</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Game</div>
+        <div class="games-row">
+          <div class="games-col">
+            <span class="label" id="tGamesLabelA">—</span>
+            <span class="games-count" id="tGamesCountA">0</span>
+          </div>
+          <span class="games-of">su 8</span>
+          <div class="games-col">
+            <span class="label" id="tGamesLabelB">—</span>
+            <span class="games-count" id="tGamesCountB">0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="final-banner" id="torneoFinalBanner" hidden>🏆 Girone terminato — classifica finale qui sotto</div>
+
+      <div class="card">
+        <div class="card-title">Classifica</div>
+        <div style="overflow-x:auto;">
+          <table class="standings-table" id="standingsTable">
+            <thead>
+              <tr><th>#</th><th>Nome</th><th>V</th><th>P</th><th>Diff</th></tr>
+            </thead>
+            <tbody id="standingsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Calendario</div>
+        <div id="scheduleList" style="display:flex; flex-direction:column; gap:8px;"></div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn ghost block" id="tCancelBtn">Annulla torneo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ LIBERA PANEL ============ -->
+  <div class="panel" id="panelLibera" hidden>
     <div class="card">
       <div class="names">
         <div class="name-field">
@@ -303,43 +412,6 @@
       <button class="btn primary block" id="resetMatchBtn">Nuova partita</button>
     </div>
   </div>
-
-  <!-- DRAW PANEL -->
-  <div class="panel" id="panelDraw" hidden>
-    <div class="card">
-      <div class="card-title">Giocatori presenti</div>
-      <div class="add-row">
-        <input id="playerInput" placeholder="Nome giocatore" maxlength="20">
-        <button id="addPlayerBtn">Aggiungi</button>
-      </div>
-      <div class="players" id="playerList" style="margin-top:10px;"></div>
-      <div class="empty-note" id="emptyNote">Aggiungi almeno 2 giocatori per sorteggiare.</div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Formato incontri</div>
-      <div class="segmented" id="modeSegmented">
-        <button data-mode="singles" aria-pressed="true">Sfide singole</button>
-        <button data-mode="doubles" aria-pressed="false">Doppio casuale</button>
-      </div>
-      <div style="height:12px;"></div>
-      <div class="card-title">Campi disponibili</div>
-      <div class="stepper">
-        <button id="courtsMinus" aria-label="Meno campi">–</button>
-        <span class="val" id="courtsVal">1</span>
-        <button id="courtsPlus" aria-label="Più campi">+</button>
-      </div>
-    </div>
-
-    <button class="btn primary block" id="drawBtn">Sorteggia</button>
-
-    <div id="resultsWrap" hidden>
-      <div class="btn-row" style="margin-bottom:2px;">
-        <button class="btn ghost block" id="reshuffleBtn">Rimescola</button>
-      </div>
-      <div id="resultsList" style="display:flex; flex-direction:column; gap:14px;"></div>
-    </div>
-  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -348,10 +420,11 @@
   <div class="winner-card">
     <div class="cup">🏆</div>
     <h2 id="winnerName">Squadra A</h2>
-    <p>ha vinto la partita 8 a 6</p>
-    <button class="btn primary block" id="winnerCloseBtn">Nuova partita</button>
+    <p id="winnerNote">ha vinto la partita 8 a 6</p>
+    <button class="btn primary block" id="winnerActionBtn">Nuova partita</button>
   </div>
 </div>
+
 
 <script>
 (function(){
@@ -371,289 +444,378 @@
     showToast._h = setTimeout(function(){ t.classList.remove('show'); }, 1800);
   }
 
-  /* ---------- TABS ---------- */
-  var tabScoreBtn = document.getElementById('tabScoreBtn');
-  var tabDrawBtn = document.getElementById('tabDrawBtn');
-  var panelScore = document.getElementById('panelScore');
-  var panelDraw = document.getElementById('panelDraw');
-  function selectTab(which){
-    var onScore = which === 'score';
-    tabScoreBtn.setAttribute('aria-selected', onScore);
-    tabDrawBtn.setAttribute('aria-selected', !onScore);
-    panelScore.hidden = !onScore;
-    panelDraw.hidden = onScore;
-  }
-  tabScoreBtn.addEventListener('click', function(){ selectTab('score'); });
-  tabDrawBtn.addEventListener('click', function(){ selectTab('draw'); });
-
-  /* ---------- SCORE STATE (regole ufficiali BADBALL®) ---------- */
-  // Progressione 15-30-40-Gioco, sul 40 pari punto secco (no vantaggi): chi arriva a 4 punti vince il game.
-  // Partita al primo a 8 game. Sul 7-7 tie-break ai 7 punti con 2 di vantaggio.
-  var nameA = document.getElementById('nameA');
-  var nameB = document.getElementById('nameB');
-  var labelA = document.getElementById('labelA');
-  var labelB = document.getElementById('labelB');
-  var digitA = document.getElementById('digitA');
-  var digitB = document.getElementById('digitB');
-  var serveA = document.getElementById('serveA');
-  var serveB = document.getElementById('serveB');
-  var tbFlag = document.getElementById('tbFlag');
-  var gamesLabelA = document.getElementById('gamesLabelA');
-  var gamesLabelB = document.getElementById('gamesLabelB');
-  var gamesCountA = document.getElementById('gamesCountA');
-  var gamesCountB = document.getElementById('gamesCountB');
-
-  var POINT_LABELS = ['0','15','30','40'];
-
-  var state = {
-    ptsA:0, ptsB:0,
-    gamesA:0, gamesB:0,
-    server: store.get('server','A'),
-    tiebreak:false, tbA:0, tbB:0,
-    matchOver:false
-  };
-
-  nameA.value = store.get('teamA','Squadra A');
-  nameB.value = store.get('teamB','Squadra B');
-  labelA.textContent = nameA.value; labelB.textContent = nameB.value;
-  gamesLabelA.textContent = nameA.value; gamesLabelB.textContent = nameB.value;
-
-  nameA.addEventListener('input', function(){
-    labelA.textContent = nameA.value || 'Squadra A';
-    gamesLabelA.textContent = nameA.value || 'Squadra A';
-    store.set('teamA', nameA.value);
-  });
-  nameB.addEventListener('input', function(){
-    labelB.textContent = nameB.value || 'Squadra B';
-    gamesLabelB.textContent = nameB.value || 'Squadra B';
-    store.set('teamB', nameB.value);
-  });
-
-  function renderScore(){
-    digitA.textContent = state.tiebreak ? state.tbA : POINT_LABELS[state.ptsA];
-    digitB.textContent = state.tiebreak ? state.tbB : POINT_LABELS[state.ptsB];
-    gamesCountA.textContent = state.gamesA;
-    gamesCountB.textContent = state.gamesB;
-    serveA.hidden = state.server !== 'A';
-    serveB.hidden = state.server !== 'B';
-    tbFlag.hidden = !state.tiebreak;
-  }
-
-  function toggleServer(){ state.server = state.server === 'A' ? 'B' : 'A'; store.set('server', state.server); }
-
-  function endMatch(winnerTeam, note){
-    state.matchOver = true;
-    var wName = winnerTeam==='A' ? (nameA.value||'Squadra A') : (nameB.value||'Squadra B');
-    document.getElementById('winnerName').textContent = wName;
-    document.querySelector('.winner-card p').textContent = 'ha vinto la partita ' + state.gamesA + ' a ' + state.gamesB + (note? ' ' + note : '');
-    document.getElementById('winnerOverlay').classList.add('show');
+  var winnerOverlay = document.getElementById('winnerOverlay');
+  var winnerName = document.getElementById('winnerName');
+  var winnerNote = document.getElementById('winnerNote');
+  var winnerActionBtn = document.getElementById('winnerActionBtn');
+  function showWinnerOverlay(name, note, actionLabel, onAction){
+    winnerName.textContent = name;
+    winnerNote.textContent = note;
+    winnerActionBtn.textContent = actionLabel;
+    winnerActionBtn.onclick = function(){ winnerOverlay.classList.remove('show'); onAction(); };
+    winnerOverlay.classList.add('show');
     vibrate([20,40,20]);
   }
 
-  function onGameWon(team){
-    if(team==='A') state.gamesA++; else state.gamesB++;
-    state.ptsA=0; state.ptsB=0;
-    toggleServer();
-    showToast((team==='A'? nameA.value : nameB.value) + ' vince il game');
-    if(state.gamesA===7 && state.gamesB===7){
-      state.tiebreak = true; state.tbA=0; state.tbB=0;
-      showToast('Tie-break: primo a 7 punti, 2 di vantaggio');
-    } else if(state.gamesA>=8 || state.gamesB>=8){
-      endMatch(state.gamesA>=8 ? 'A':'B');
-    }
-  }
+  /* ================= SCORE ENGINE (regole ufficiali BADBALL®) =================
+     Progressione 15-30-40-Gioco, sul 40 pari punto secco (no vantaggi).
+     Partita al primo a 8 game. Sul 7-7 tie-break ai 7 punti (2 di vantaggio). */
+  var POINT_LABELS = ['0','15','30','40'];
 
-  function addPoint(team, delta){
-    if(state.matchOver) return;
-    if(state.tiebreak){
-      if(team==='A') state.tbA = Math.max(0, state.tbA + delta);
-      else state.tbB = Math.max(0, state.tbB + delta);
-      renderScore();
+  function createScoreEngine(el, onMatchEnd){
+    var s = { ptsA:0, ptsB:0, gamesA:0, gamesB:0, server:'A', tiebreak:false, tbA:0, tbB:0, matchOver:false };
+
+    function render(){
+      el.digitA.textContent = s.tiebreak ? s.tbA : POINT_LABELS[s.ptsA];
+      el.digitB.textContent = s.tiebreak ? s.tbB : POINT_LABELS[s.ptsB];
+      el.gamesCountA.textContent = s.gamesA;
+      el.gamesCountB.textContent = s.gamesB;
+      el.serveA.hidden = s.server !== 'A';
+      el.serveB.hidden = s.server !== 'B';
+      el.tbFlag.hidden = !s.tiebreak;
+    }
+    function toggleServer(){ s.server = s.server === 'A' ? 'B' : 'A'; }
+    function endMatch(winner, note){
+      s.matchOver = true;
+      onMatchEnd(winner, s.gamesA, s.gamesB, note || '');
+    }
+    function onGameWon(team){
+      if(team==='A') s.gamesA++; else s.gamesB++;
+      s.ptsA=0; s.ptsB=0;
+      toggleServer();
+      showToast((team==='A'? el.nameA() : el.nameB()) + ' vince il game');
+      if(s.gamesA===7 && s.gamesB===7){
+        s.tiebreak = true; s.tbA=0; s.tbB=0;
+        showToast('Tie-break: primo a 7 punti, 2 di vantaggio');
+      } else if(s.gamesA>=8 || s.gamesB>=8){
+        endMatch(s.gamesA>=8 ? 'A':'B');
+      }
+    }
+    function addPoint(team, delta){
+      if(s.matchOver) return;
+      if(s.tiebreak){
+        if(team==='A') s.tbA = Math.max(0, s.tbA + delta);
+        else s.tbB = Math.max(0, s.tbB + delta);
+        render();
+        if(delta>0){
+          vibrate(10);
+          var a=s.tbA, b=s.tbB;
+          if((a>=7||b>=7) && Math.abs(a-b)>=2){
+            var winner = a>b ? 'A':'B';
+            if(winner==='A') s.gamesA = 8; else s.gamesB = 8;
+            render();
+            s.tiebreak = false;
+            endMatch(winner, '(al tie-break ' + Math.max(a,b) + '-' + Math.min(a,b) + ')');
+          }
+        }
+        return;
+      }
+      if(team==='A') s.ptsA = Math.max(0, s.ptsA + delta);
+      else s.ptsB = Math.max(0, s.ptsB + delta);
+      render();
       if(delta>0){
         vibrate(10);
-        var a=state.tbA, b=state.tbB;
-        if((a>=7||b>=7) && Math.abs(a-b)>=2){
-          var winner = a>b ? 'A':'B';
-          if(winner==='A') state.gamesA = 8; else state.gamesB = 8;
-          renderScore();
-          state.tiebreak = false;
-          endMatch(winner, '(al tie-break ' + Math.max(a,b) + '-' + Math.min(a,b) + ')');
-        }
+        if(s.ptsA>=4) onGameWon('A');
+        else if(s.ptsB>=4) onGameWon('B');
+        render();
       }
-      return;
     }
-    if(team==='A') state.ptsA = Math.max(0, state.ptsA + delta);
-    else state.ptsB = Math.max(0, state.ptsB + delta);
-    renderScore();
-    if(delta>0){
-      vibrate(10);
-      if(state.ptsA>=4) onGameWon('A');
-      else if(state.ptsB>=4) onGameWon('B');
-      renderScore();
+    function resetForNewMatch(){
+      s.ptsA=0; s.ptsB=0; s.gamesA=0; s.gamesB=0;
+      s.tiebreak=false; s.tbA=0; s.tbB=0; s.matchOver=false; s.server='A';
+      render();
     }
+    el.tileA.addEventListener('click', function(e){ if(e.target===el.minusA) return; addPoint('A',1); });
+    el.tileB.addEventListener('click', function(e){ if(e.target===el.minusB) return; addPoint('B',1); });
+    el.minusA.addEventListener('click', function(e){ e.stopPropagation(); addPoint('A',-1); });
+    el.minusB.addEventListener('click', function(e){ e.stopPropagation(); addPoint('B',-1); });
+    render();
+    return { resetForNewMatch: resetForNewMatch };
   }
 
-  document.getElementById('tileA').addEventListener('click', function(e){ if(e.target.id==='minusA') return; addPoint('A',1); });
-  document.getElementById('tileB').addEventListener('click', function(e){ if(e.target.id==='minusB') return; addPoint('B',1); });
-  document.getElementById('minusA').addEventListener('click', function(e){ e.stopPropagation(); addPoint('A',-1); });
-  document.getElementById('minusB').addEventListener('click', function(e){ e.stopPropagation(); addPoint('B',-1); });
-
-  function resetMatch(){
-    state.ptsA=0; state.ptsB=0; state.gamesA=0; state.gamesB=0;
-    state.tiebreak=false; state.tbA=0; state.tbB=0; state.matchOver=false;
-    state.server='A'; store.set('server','A');
-    renderScore();
-    document.getElementById('winnerOverlay').classList.remove('show');
+  /* ================= TABS ================= */
+  var tabTorneoBtn = document.getElementById('tabTorneoBtn');
+  var tabLiberaBtn = document.getElementById('tabLiberaBtn');
+  var panelTorneo = document.getElementById('panelTorneo');
+  var panelLibera = document.getElementById('panelLibera');
+  function selectTab(which){
+    var onTorneo = which === 'torneo';
+    tabTorneoBtn.setAttribute('aria-selected', onTorneo);
+    tabLiberaBtn.setAttribute('aria-selected', !onTorneo);
+    panelTorneo.hidden = !onTorneo;
+    panelLibera.hidden = onTorneo;
   }
-  document.getElementById('resetMatchBtn').addEventListener('click', resetMatch);
-  document.getElementById('winnerCloseBtn').addEventListener('click', resetMatch);
+  tabTorneoBtn.addEventListener('click', function(){ selectTab('torneo'); });
+  tabLiberaBtn.addEventListener('click', function(){ selectTab('libera'); });
 
-  renderScore();
+  /* ================= LIBERA (punteggio manuale, senza classifica) ================= */
+  (function(){
+    var nameA = document.getElementById('nameA');
+    var nameB = document.getElementById('nameB');
+    var labelA = document.getElementById('labelA');
+    var labelB = document.getElementById('labelB');
+    var gamesLabelA = document.getElementById('gamesLabelA');
+    var gamesLabelB = document.getElementById('gamesLabelB');
 
-  /* ---------- DRAW STATE ---------- */
-  var players = store.get('players', []);
-  var mode = store.get('mode', 'singles');
-  var courts = store.get('courts', 1);
+    nameA.value = store.get('teamA','Squadra A');
+    nameB.value = store.get('teamB','Squadra B');
+    labelA.textContent = nameA.value; labelB.textContent = nameB.value;
+    gamesLabelA.textContent = nameA.value; gamesLabelB.textContent = nameB.value;
 
-  var playerInput = document.getElementById('playerInput');
-  var addPlayerBtn = document.getElementById('addPlayerBtn');
-  var playerList = document.getElementById('playerList');
-  var emptyNote = document.getElementById('emptyNote');
-  var modeSegmented = document.getElementById('modeSegmented');
-  var courtsVal = document.getElementById('courtsVal');
-  var drawBtn = document.getElementById('drawBtn');
-  var resultsWrap = document.getElementById('resultsWrap');
-  var resultsList = document.getElementById('resultsList');
+    nameA.addEventListener('input', function(){
+      labelA.textContent = nameA.value || 'Squadra A';
+      gamesLabelA.textContent = nameA.value || 'Squadra A';
+      store.set('teamA', nameA.value);
+    });
+    nameB.addEventListener('input', function(){
+      labelB.textContent = nameB.value || 'Squadra B';
+      gamesLabelB.textContent = nameB.value || 'Squadra B';
+      store.set('teamB', nameB.value);
+    });
 
-  function renderPlayers(){
-    playerList.innerHTML = '';
-    players.forEach(function(name, idx){
-      var chip = document.createElement('div');
-      chip.className = 'player-chip';
-      var span = document.createElement('span');
-      span.textContent = name;
-      var btn = document.createElement('button');
-      btn.textContent = '×';
-      btn.setAttribute('aria-label', 'Rimuovi ' + name);
+    var engine = createScoreEngine({
+      digitA: document.getElementById('digitA'), digitB: document.getElementById('digitB'),
+      serveA: document.getElementById('serveA'), serveB: document.getElementById('serveB'),
+      tbFlag: document.getElementById('tbFlag'),
+      gamesCountA: document.getElementById('gamesCountA'), gamesCountB: document.getElementById('gamesCountB'),
+      tileA: document.getElementById('tileA'), tileB: document.getElementById('tileB'),
+      minusA: document.getElementById('minusA'), minusB: document.getElementById('minusB'),
+      nameA: function(){ return nameA.value || 'Squadra A'; },
+      nameB: function(){ return nameB.value || 'Squadra B'; }
+    }, function(winner, gamesA, gamesB, note){
+      var wName = winner==='A' ? (nameA.value||'Squadra A') : (nameB.value||'Squadra B');
+      showWinnerOverlay(wName, 'ha vinto la partita ' + gamesA + ' a ' + gamesB + (note? ' ' + note : ''), 'Nuova partita', function(){
+        engine.resetForNewMatch();
+      });
+    });
+
+    document.getElementById('resetMatchBtn').addEventListener('click', function(){ engine.resetForNewMatch(); });
+  })();
+
+  /* ================= TORNEO (girone all'italiana con classifica automatica) ================= */
+  (function(){
+    var torneoSetup = document.getElementById('torneoSetup');
+    var torneoPlay = document.getElementById('torneoPlay');
+    var tPlayerInput = document.getElementById('tPlayerInput');
+    var tAddPlayerBtn = document.getElementById('tAddPlayerBtn');
+    var tPlayerList = document.getElementById('tPlayerList');
+    var tEmptyNote = document.getElementById('tEmptyNote');
+    var tFormatSegmented = document.getElementById('tFormatSegmented');
+    var tDoublesWarning = document.getElementById('tDoublesWarning');
+    var tStartBtn = document.getElementById('tStartBtn');
+    var tProgressText = document.getElementById('tProgressText');
+    var scheduleList = document.getElementById('scheduleList');
+    var standingsBody = document.getElementById('standingsBody');
+    var torneoFinalBanner = document.getElementById('torneoFinalBanner');
+    var torneoMatchCard = document.getElementById('torneoMatchCard');
+
+    var players = store.get('tPlayers', []);
+    var format = store.get('tFormat', 'singolo');
+    var tournament = null; // { queue:[{round,a,b,played,result}], idx, standings:{label:{w,l,gf,gs}} }
+
+    function renderPlayers(){
+      tPlayerList.innerHTML = '';
+      players.forEach(function(name, idx){
+        var chip = document.createElement('div');
+        chip.className = 'player-chip';
+        var span = document.createElement('span');
+        span.textContent = name;
+        var btn = document.createElement('button');
+        btn.textContent = '×';
+        btn.setAttribute('aria-label', 'Rimuovi ' + name);
+        btn.addEventListener('click', function(){
+          players.splice(idx,1);
+          store.set('tPlayers', players);
+          renderPlayers();
+        });
+        chip.appendChild(span); chip.appendChild(btn);
+        tPlayerList.appendChild(chip);
+      });
+      tEmptyNote.hidden = players.length >= 2;
+      var oddForDoubles = format === 'doppio' && (players.length < 4 || players.length % 2 !== 0);
+      tDoublesWarning.hidden = !oddForDoubles;
+      var ok = format === 'doppio' ? (players.length >= 4 && players.length % 2 === 0) : players.length >= 2;
+      tStartBtn.disabled = !ok;
+      tStartBtn.style.opacity = ok ? 1 : 0.5;
+    }
+    function addPlayer(){
+      var v = tPlayerInput.value.trim();
+      if(!v) return;
+      players.push(v);
+      store.set('tPlayers', players);
+      tPlayerInput.value = '';
+      renderPlayers();
+    }
+    tAddPlayerBtn.addEventListener('click', addPlayer);
+    tPlayerInput.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); addPlayer(); } });
+
+    Array.prototype.forEach.call(tFormatSegmented.children, function(btn){
       btn.addEventListener('click', function(){
-        players.splice(idx,1);
-        store.set('players', players);
+        Array.prototype.forEach.call(tFormatSegmented.children, function(b){ b.setAttribute('aria-pressed','false'); });
+        btn.setAttribute('aria-pressed','true');
+        format = btn.dataset.format;
+        store.set('tFormat', format);
         renderPlayers();
       });
-      chip.appendChild(span); chip.appendChild(btn);
-      playerList.appendChild(chip);
+      if(btn.dataset.format === format) btn.setAttribute('aria-pressed','true'); else btn.setAttribute('aria-pressed','false');
     });
-    emptyNote.hidden = players.length >= 2;
-    drawBtn.disabled = players.length < 2;
-    drawBtn.style.opacity = players.length < 2 ? 0.5 : 1;
-  }
 
-  function addPlayer(){
-    var v = playerInput.value.trim();
-    if(!v) return;
-    players.push(v);
-    store.set('players', players);
-    playerInput.value = '';
-    renderPlayers();
-  }
-  addPlayerBtn.addEventListener('click', addPlayer);
-  playerInput.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); addPlayer(); } });
-
-  Array.prototype.forEach.call(modeSegmented.children, function(btn){
-    btn.addEventListener('click', function(){
-      Array.prototype.forEach.call(modeSegmented.children, function(b){ b.setAttribute('aria-pressed','false'); });
-      btn.setAttribute('aria-pressed','true');
-      mode = btn.dataset.mode;
-      store.set('mode', mode);
-    });
-    if(btn.dataset.mode === mode) btn.setAttribute('aria-pressed','true'); else btn.setAttribute('aria-pressed','false');
-  });
-
-  function renderCourts(){ courtsVal.textContent = courts; }
-  document.getElementById('courtsMinus').addEventListener('click', function(){
-    courts = Math.max(1, courts-1); store.set('courts', courts); renderCourts();
-  });
-  document.getElementById('courtsPlus').addEventListener('click', function(){
-    courts = Math.min(6, courts+1); store.set('courts', courts); renderCourts();
-  });
-
-  function shuffle(arr){
-    var a = arr.slice();
-    for(var i=a.length-1;i>0;i--){
-      var j = Math.floor(Math.random()*(i+1));
-      var tmp=a[i]; a[i]=a[j]; a[j]=tmp;
-    }
-    return a;
-  }
-
-  function runDraw(){
-    var pool = shuffle(players);
-    var matches = []; var bye = null; var byeUnits = [];
-
-    if(mode === 'singles'){
-      if(pool.length % 2 === 1) bye = pool.pop();
-      for(var i=0;i<pool.length;i+=2){
-        matches.push({ a:[pool[i]], b:[pool[i+1]] });
+    function shuffle(arr){
+      var a = arr.slice();
+      for(var i=a.length-1;i>0;i--){
+        var j = Math.floor(Math.random()*(i+1));
+        var tmp=a[i]; a[i]=a[j]; a[j]=tmp;
       }
-    } else {
-      var units = [];
-      var rem = pool.slice();
-      while(rem.length >= 2){ units.push([rem.shift(), rem.shift()]); }
-      if(rem.length === 1) byeUnits.push(rem[0]);
-      if(units.length % 2 === 1){
-        var lone = units.pop();
-        byeUnits = byeUnits.concat(lone);
-      }
-      for(var k=0;k<units.length;k+=2){
-        matches.push({ a:units[k], b:units[k+1] });
-      }
-      if(byeUnits.length) bye = byeUnits.join(' & ');
+      return a;
     }
 
-    resultsList.innerHTML = '';
-    if(matches.length === 0){
-      resultsList.innerHTML = '<div class="empty-note">Servono più giocatori per formare un incontro in questa modalità.</div>';
-    } else {
-      var perRound = courts;
-      var rounds = Math.ceil(matches.length / perRound);
-      var matchIdx = 0;
-      for(var r=0; r<rounds; r++){
-        var roundLabel = document.createElement('div');
-        roundLabel.className = 'round-label';
-        roundLabel.textContent = rounds > 1 ? 'Turno ' + (r+1) : 'Incontri';
-        resultsList.appendChild(roundLabel);
-        var roundWrap = document.createElement('div');
-        roundWrap.className = 'round';
-        for(var c=0; c<perRound && matchIdx < matches.length; c++, matchIdx++){
-          var m = matches[matchIdx];
-          var card = document.createElement('div');
-          card.className = 'match-card';
-          card.innerHTML =
-            '<div class="court-badge">Campo<br>' + (c+1) + '</div>' +
-            '<div class="match-sides">' +
-              '<span class="side">' + m.a.join(' &amp; ') + '</span>' +
-              '<span class="vs">VS</span>' +
-              '<span class="side">' + m.b.join(' &amp; ') + '</span>' +
-            '</div>';
-          roundWrap.appendChild(card);
+    // Circle-method round robin. items: array of {label}. Returns array of rounds, each an array of [itemA,itemB].
+    function roundRobinRounds(items){
+      var list = items.slice();
+      if(list.length % 2 === 1) list.push(null);
+      var n = list.length;
+      var rounds = [];
+      for(var r=0; r<n-1; r++){
+        var roundMatches = [];
+        for(var i=0;i<n/2;i++){
+          var a = list[i], b = list[n-1-i];
+          if(a!==null && b!==null) roundMatches.push([a,b]);
         }
-        resultsList.appendChild(roundWrap);
+        rounds.push(roundMatches);
+        var fixed = list[0];
+        var rest = list.slice(1);
+        rest.unshift(rest.pop());
+        list = [fixed].concat(rest);
       }
+      return rounds;
     }
-    if(bye){
-      var byeCard = document.createElement('div');
-      byeCard.className = 'bye-card';
-      byeCard.textContent = 'A riposo: ' + bye;
-      resultsList.appendChild(byeCard);
+
+    function buildParticipants(){
+      if(format === 'singolo'){
+        return players.map(function(name){ return { label: name }; });
+      }
+      var pool = shuffle(players);
+      var teams = [];
+      for(var i=0;i<pool.length;i+=2){
+        teams.push({ label: pool[i] + ' & ' + pool[i+1] });
+      }
+      return teams;
     }
-    resultsWrap.hidden = false;
-  }
 
-  drawBtn.addEventListener('click', runDraw);
-  document.getElementById('reshuffleBtn').addEventListener('click', runDraw);
+    function renderStandings(){
+      var rows = Object.keys(tournament.standings).map(function(label){
+        var st = tournament.standings[label];
+        return { label: label, w: st.w, l: st.l, gf: st.gf, gs: st.gs, diff: st.gf - st.gs };
+      });
+      rows.sort(function(x,y){
+        if(y.w !== x.w) return y.w - x.w;
+        if(y.diff !== x.diff) return y.diff - x.diff;
+        return y.gf - x.gf;
+      });
+      standingsBody.innerHTML = '';
+      rows.forEach(function(row, i){
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + (i+1) + '</td><td style="text-align:left;">' + row.label + '</td><td>' + row.w + '</td><td>' + row.l + '</td><td>' + (row.diff>0? '+':'') + row.diff + '</td>';
+        standingsBody.appendChild(tr);
+      });
+    }
 
-  renderPlayers();
-  renderCourts();
+    function renderSchedule(){
+      scheduleList.innerHTML = '';
+      tournament.queue.forEach(function(m, i){
+        var card = document.createElement('div');
+        card.className = 'match-card' + (m.played ? ' done' : (i === tournament.idx ? ' current' : ''));
+        var resultText = m.played ? (' <span style="color:var(--ink-soft); font-weight:600;">(' + m.result + ')</span>') : '';
+        card.innerHTML =
+          '<div class="court-badge">T' + m.round + '</div>' +
+          '<div class="match-sides"><span class="side">' + m.a.label + '</span><span class="vs">VS</span><span class="side">' + m.b.label + '</span></div>';
+        if(resultText) card.innerHTML += '<div style="font-size:11px; color:var(--ink-soft); white-space:nowrap;">' + m.result + '</div>';
+        scheduleList.appendChild(card);
+      });
+    }
+
+    var engine = null;
+    function loadMatch(){
+      var m = tournament.queue[tournament.idx];
+      document.getElementById('tLabelA').textContent = m.a.label;
+      document.getElementById('tLabelB').textContent = m.b.label;
+      document.getElementById('tGamesLabelA').textContent = m.a.label;
+      document.getElementById('tGamesLabelB').textContent = m.b.label;
+      tProgressText.textContent = 'Partita ' + (tournament.idx+1) + ' di ' + tournament.queue.length + ' · Turno ' + m.round;
+      if(engine) engine.resetForNewMatch();
+      renderSchedule();
+    }
+
+    function onTorneoMatchEnd(winner, gamesA, gamesB, note){
+      var m = tournament.queue[tournament.idx];
+      var winnerItem = winner === 'A' ? m.a : m.b;
+      var loserItem = winner === 'A' ? m.b : m.a;
+      tournament.standings[winnerItem.label].w++;
+      tournament.standings[loserItem.label].l++;
+      tournament.standings[winnerItem.label].gf += Math.max(gamesA, gamesB);
+      tournament.standings[winnerItem.label].gs += Math.min(gamesA, gamesB);
+      tournament.standings[loserItem.label].gf += Math.min(gamesA, gamesB);
+      tournament.standings[loserItem.label].gs += Math.max(gamesA, gamesB);
+      m.played = true;
+      m.result = gamesA + '-' + gamesB;
+      renderStandings();
+
+      var isLast = tournament.idx >= tournament.queue.length - 1;
+      var noteText = 'ha vinto la partita ' + gamesA + ' a ' + gamesB + (note ? ' ' + note : '');
+      showWinnerOverlay(winnerItem.label, noteText, isLast ? 'Vedi classifica finale' : 'Prossima partita', function(){
+        if(isLast){
+          torneoMatchCard.hidden = true;
+          torneoFinalBanner.hidden = false;
+          renderSchedule();
+        } else {
+          tournament.idx++;
+          loadMatch();
+        }
+      });
+    }
+
+    function startTournament(){
+      var participants = buildParticipants();
+      var rounds = roundRobinRounds(participants);
+      var queue = [];
+      rounds.forEach(function(round, ri){
+        round.forEach(function(pair){
+          queue.push({ round: ri+1, a: pair[0], b: pair[1], played:false, result:null });
+        });
+      });
+      var standings = {};
+      participants.forEach(function(p){ standings[p.label] = { w:0, l:0, gf:0, gs:0 }; });
+      tournament = { queue: queue, idx: 0, standings: standings };
+
+      torneoFinalBanner.hidden = true;
+      torneoMatchCard.hidden = false;
+      torneoSetup.hidden = true;
+      torneoPlay.hidden = false;
+
+      engine = createScoreEngine({
+        digitA: document.getElementById('tDigitA'), digitB: document.getElementById('tDigitB'),
+        serveA: document.getElementById('tServeA'), serveB: document.getElementById('tServeB'),
+        tbFlag: document.getElementById('tTbFlag'),
+        gamesCountA: document.getElementById('tGamesCountA'), gamesCountB: document.getElementById('tGamesCountB'),
+        tileA: document.getElementById('tTileA'), tileB: document.getElementById('tTileB'),
+        minusA: document.getElementById('tMinusA'), minusB: document.getElementById('tMinusB'),
+        nameA: function(){ return tournament.queue[tournament.idx].a.label; },
+        nameB: function(){ return tournament.queue[tournament.idx].b.label; }
+      }, onTorneoMatchEnd);
+
+      renderStandings();
+      loadMatch();
+    }
+    tStartBtn.addEventListener('click', startTournament);
+
+    document.getElementById('tCancelBtn').addEventListener('click', function(){
+      tournament = null; engine = null;
+      torneoPlay.hidden = true;
+      torneoSetup.hidden = false;
+    });
+
+    renderPlayers();
+  })();
 })();
 </script>
 
