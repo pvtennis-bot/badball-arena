@@ -1,0 +1,649 @@
+<title>BADBALL Arena</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,900;1,700&family=Barlow:wght@400;600;700&display=swap">
+<style>
+  /* Palette e font allineati al brand ufficiale BADBALL® (nero + giallo + ciano, Barlow Condensed/Barlow) */
+  :root{
+    --court:#1CB8D8; --court-deep:#128DA6; --court-soft:rgba(28,184,216,0.14);
+    --cork:#F5D000; --cork-deep:#C7AA00; --cork-soft:rgba(245,208,0,0.14);
+    --chalk:#0A0A0A; --surface:#141414; --ink:#FAFAFA; --ink-soft:rgba(250,250,250,0.58);
+    --line:rgba(250,250,250,0.14); --ball:#F5D000; --danger:#E2574C; --good:#1CB8D8;
+    color-scheme:dark;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--chalk); color:var(--ink);
+    font-family:'Barlow',system-ui,-apple-system,sans-serif;
+    padding-inline:16px; padding-block:14px;
+  }
+  h1,h2,h3{margin:0; text-wrap:balance;}
+  button{font-family:inherit; cursor:pointer;}
+  input{font-family:inherit;}
+
+  .shell{max-width:460px; margin-inline:auto; display:flex; flex-direction:column; gap:14px;}
+
+  /* Header */
+  .header{
+    background:var(--chalk); border:1px solid var(--line);
+    border-radius:20px; padding:18px 20px; color:var(--ink); position:relative; overflow:hidden;
+    display:flex; align-items:center; gap:14px;
+  }
+  .header::before{
+    content:""; position:absolute; inset:0;
+    background:radial-gradient(ellipse 90% 70% at 30% 30%, rgba(28,184,216,0.22) 0%, transparent 70%);
+    pointer-events:none;
+  }
+  .ball-mark{
+    width:44px; height:44px; border-radius:50%; flex:none; position:relative; z-index:1;
+    background:radial-gradient(circle at 32% 28%, #FFF6C2, var(--ball) 55%, var(--cork-deep) 100%);
+    box-shadow:inset -3px -4px 6px rgba(0,0,0,0.35), inset 2px 3px 4px rgba(255,255,255,0.4);
+  }
+  .header-text{position:relative; z-index:1;}
+  .wordmark{font-family:'Barlow Condensed',sans-serif; font-weight:900; font-size:29px; letter-spacing:0.4px; line-height:1; text-transform:uppercase;}
+  .wordmark .w-bad{color:var(--ink);}
+  .wordmark .w-ball{color:var(--cork);}
+  .wordmark .w-reg{color:var(--court); font-size:12px; vertical-align:super; margin-left:2px;}
+  .tagline{font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--court); margin-top:4px;}
+
+  /* Tabs */
+  .tabs{
+    display:flex; background:var(--surface); border:1px solid var(--line);
+    border-radius:14px; padding:4px; gap:4px;
+  }
+  .tab{
+    flex:1; border:none; background:transparent; color:var(--ink-soft);
+    font-weight:700; font-size:13px; padding:10px 8px; border-radius:10px;
+    letter-spacing:0.6px; text-transform:uppercase; transition:background .15s ease, color .15s ease;
+  }
+  .tab[aria-selected="true"]{background:var(--cork); color:var(--chalk);}
+
+  .panel{display:flex; flex-direction:column; gap:16px;}
+  .card{
+    background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:16px;
+  }
+  .card-title{font-size:12px; letter-spacing:1.2px; text-transform:uppercase; color:var(--ink-soft); font-weight:700; margin-bottom:10px;}
+
+  /* Score screen */
+  .names{display:flex; gap:10px;}
+  .name-field{flex:1; min-width:0;}
+  .name-field label{display:block; font-size:11px; color:var(--ink-soft); margin-bottom:4px; letter-spacing:0.4px;}
+  .name-field input{
+    width:100%; border:1px solid var(--line); border-radius:10px; padding:8px 10px;
+    font-size:14px; font-weight:700; background:var(--chalk); color:var(--ink);
+  }
+  .name-field input:focus{outline:2px solid var(--court); outline-offset:1px;}
+
+  .score-grid{display:flex; gap:10px;}
+  .score-tile{
+    flex:1; min-width:0; position:relative; border-radius:18px; padding:18px 8px 14px;
+    background:var(--surface); border:1px solid var(--line); text-align:center;
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    -webkit-user-select:none; user-select:none; overflow:hidden;
+  }
+  .score-tile.teamA::before, .score-tile.teamB::before{
+    content:""; position:absolute; top:0; left:0; right:0; height:5px;
+  }
+  .score-tile.teamA::before{background:var(--cork);}
+  .score-tile.teamB::before{background:var(--court);}
+  .score-tile .team-label{font-size:12px; font-weight:700; color:var(--ink-soft); letter-spacing:0.3px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .score-tile .digit{
+    font-family:'Barlow Condensed',sans-serif; font-weight:900; font-size:clamp(52px,16vw,76px); line-height:1;
+    font-variant-numeric:tabular-nums; color:var(--ink); margin-block:2px;
+  }
+  .score-tile .tap-hint{font-size:10px; color:var(--ink-soft); letter-spacing:0.3px;}
+  .minus-btn{
+    border:1px solid var(--line); background:var(--chalk); color:var(--ink-soft);
+    width:30px; height:30px; border-radius:50%; font-size:16px; font-weight:800; line-height:1;
+  }
+  .serve-badge{
+    font-size:9px; font-weight:800; letter-spacing:0.6px; text-transform:uppercase;
+    background:var(--good); color:var(--chalk); padding:3px 8px; border-radius:999px;
+  }
+  .tb-flag{
+    margin-top:12px; text-align:center; font-size:11px; font-weight:800; letter-spacing:0.4px;
+    text-transform:uppercase; color:var(--cork-deep); background:var(--cork-soft);
+    border-radius:10px; padding:8px 10px;
+  }
+
+  .games-row{display:flex; justify-content:center; align-items:center; gap:16px;}
+  .games-col{display:flex; flex-direction:column; align-items:center; gap:4px;}
+  .games-col .label{font-size:10px; color:var(--ink-soft); letter-spacing:0.5px; text-transform:uppercase; max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .games-count{font-family:'Barlow Condensed',sans-serif; font-weight:900; font-size:34px; color:var(--ink); font-variant-numeric:tabular-nums;}
+  .games-of{font-size:11px; color:var(--ink-soft); font-weight:700; letter-spacing:0.3px;}
+
+  .rules-card{background:var(--court-soft);}
+  .rules-list{margin:0; padding-left:18px; display:flex; flex-direction:column; gap:6px; font-size:12.5px; color:var(--ink); line-height:1.4;}
+
+  .chip-row{display:flex; flex-wrap:wrap; gap:8px; align-items:center;}
+  .chip{
+    border:1px solid var(--line); background:var(--chalk); color:var(--ink-soft);
+    font-size:12px; font-weight:700; padding:7px 12px; border-radius:999px;
+  }
+  .chip[aria-pressed="true"]{background:var(--cork); color:var(--chalk); border-color:var(--cork);}
+  .toggle-row{display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:13px; color:var(--ink-soft); font-weight:600;}
+  .switch{position:relative; width:38px; height:22px; flex:none;}
+  .switch input{position:absolute; inset:0; opacity:0; margin:0; cursor:pointer;}
+  .switch .track{position:absolute; inset:0; background:var(--line); border-radius:999px; transition:background .15s;}
+  .switch .thumb{position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:var(--surface); box-shadow:0 1px 2px rgba(0,0,0,0.3); transition:transform .15s;}
+  .switch input:checked + .track{background:var(--good);}
+  .switch input:checked + .track + .thumb{transform:translateX(16px);}
+
+  .btn-row{display:flex; gap:10px;}
+  .btn{
+    flex:1; border-radius:6px; padding:12px 10px; font-weight:800; font-size:13px;
+    letter-spacing:0.8px; text-transform:uppercase; border:1px solid transparent; text-align:center;
+    font-family:'Barlow Condensed',sans-serif;
+  }
+  .btn.primary{background:var(--cork); color:var(--chalk);}
+  .btn.ghost{background:transparent; color:var(--court); border-color:var(--court);}
+  .btn.block{width:100%;}
+  .btn:active{transform:scale(0.98);}
+
+  /* Draw screen */
+  .add-row{display:flex; gap:8px;}
+  .add-row input{
+    flex:1; min-width:0; border:1px solid var(--line); border-radius:10px; padding:10px 12px;
+    font-size:14px; background:var(--chalk); color:var(--ink);
+  }
+  .add-row input:focus{outline:2px solid var(--court); outline-offset:1px;}
+  .add-row button{
+    border:none; background:var(--cork); color:var(--chalk); border-radius:10px; padding:0 16px; font-weight:800; font-size:13px;
+    text-transform:uppercase; letter-spacing:0.4px;
+  }
+  .players{display:flex; flex-wrap:wrap; gap:8px;}
+  .player-chip{
+    display:flex; align-items:center; gap:6px; background:var(--court-soft); color:var(--ink);
+    border-radius:999px; padding:6px 6px 6px 12px; font-size:13px; font-weight:600;
+  }
+  .player-chip button{
+    border:none; background:rgba(255,255,255,0.16); color:var(--ink); width:18px; height:18px;
+    border-radius:50%; font-size:11px; line-height:1; font-weight:800; padding:0;
+  }
+  .empty-note{font-size:12px; color:var(--ink-soft); font-style:italic;}
+
+  .segmented{display:flex; border:1px solid var(--line); border-radius:12px; overflow:hidden;}
+  .segmented button{flex:1; border:none; background:var(--chalk); color:var(--ink-soft); font-weight:700; font-size:13px; padding:9px 6px; text-transform:uppercase; letter-spacing:0.3px;}
+  .segmented button[aria-pressed="true"]{background:var(--cork); color:var(--chalk);}
+
+  .stepper{display:flex; align-items:center; gap:12px;}
+  .stepper button{
+    width:32px; height:32px; border-radius:50%; border:1px solid var(--line); background:var(--chalk);
+    color:var(--ink); font-size:16px; font-weight:800;
+  }
+  .stepper .val{font-family:'Barlow Condensed',sans-serif; font-weight:900; font-size:20px; min-width:24px; text-align:center;}
+
+  .round{display:flex; flex-direction:column; gap:8px;}
+  .round-label{font-size:11px; letter-spacing:0.8px; text-transform:uppercase; color:var(--ink-soft); font-weight:700; margin-top:4px;}
+  .match-card{
+    background:var(--chalk); border:1px solid var(--line); border-radius:14px; padding:10px 12px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .court-badge{
+    flex:none; width:34px; height:34px; border-radius:10px; background:var(--cork); color:var(--chalk);
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px; text-align:center; line-height:1.1;
+  }
+  .match-sides{flex:1; min-width:0; display:flex; align-items:center; justify-content:space-between; gap:8px; font-weight:700; font-size:13px;}
+  .match-sides .side{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .vs{color:var(--court); font-size:11px; font-weight:800; flex:none;}
+  .bye-card{
+    background:var(--cork-soft); border:1px dashed var(--cork); border-radius:14px; padding:10px 12px;
+    font-size:13px; font-weight:700; color:var(--cork);
+  }
+
+  /* Toasts & winner overlay */
+  .toast{
+    position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(20px);
+    background:var(--cork); color:var(--chalk); padding:10px 18px; border-radius:999px;
+    font-size:13px; font-weight:800; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s;
+    z-index:20; bottom:calc(24px + env(safe-area-inset-bottom,0px));
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  .winner-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.78); display:flex; align-items:center; justify-content:center;
+    padding:20px; z-index:30; opacity:0; pointer-events:none; transition:opacity .2s;
+  }
+  .winner-overlay.show{opacity:1; pointer-events:auto;}
+  .winner-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:28px 24px; text-align:center; max-width:320px;
+    box-shadow:0 20px 50px rgba(0,0,0,0.55);
+  }
+  .winner-card .cup{font-size:38px; margin-bottom:6px;}
+  .winner-card h2{font-family:'Barlow Condensed',sans-serif; font-weight:900; font-size:28px; text-transform:uppercase; color:var(--cork); margin-bottom:4px;}
+  .winner-card p{color:var(--ink-soft); font-size:13px; margin:0 0 16px;}
+
+  @media (prefers-reduced-motion: reduce){ *{transition:none !important;} }
+</style>
+
+<div class="shell">
+  <div class="header">
+    <div class="ball-mark" aria-hidden="true"></div>
+    <div class="header-text">
+      <div class="wordmark"><span class="w-bad">BAD</span><span class="w-ball">BALL</span><span class="w-reg">®</span></div>
+      <div class="tagline">Arena · gestione match</div>
+    </div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" id="tabScoreBtn" role="tab" aria-selected="true">Punteggio</button>
+    <button class="tab" id="tabDrawBtn" role="tab" aria-selected="false">Sorteggio</button>
+  </div>
+
+  <!-- SCORE PANEL -->
+  <div class="panel" id="panelScore">
+    <div class="card">
+      <div class="names">
+        <div class="name-field">
+          <label for="nameA">Squadra / giocatore A</label>
+          <input id="nameA" maxlength="18" value="Squadra A">
+        </div>
+        <div class="name-field">
+          <label for="nameB">Squadra / giocatore B</label>
+          <input id="nameB" maxlength="18" value="Squadra B">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="score-grid">
+        <div class="score-tile teamA" id="tileA">
+          <div class="serve-badge" id="serveA" hidden>al servizio</div>
+          <div class="team-label" id="labelA">Squadra A</div>
+          <div class="digit" id="digitA">0</div>
+          <button class="minus-btn" id="minusA" aria-label="Togli punto a Squadra A">–</button>
+          <div class="tap-hint">tocca per +1</div>
+        </div>
+        <div class="score-tile teamB" id="tileB">
+          <div class="serve-badge" id="serveB" hidden>al servizio</div>
+          <div class="team-label" id="labelB">Squadra B</div>
+          <div class="digit" id="digitB">0</div>
+          <button class="minus-btn" id="minusB" aria-label="Togli punto a Squadra B">–</button>
+          <div class="tap-hint">tocca per +1</div>
+        </div>
+      </div>
+      <div class="tb-flag" id="tbFlag" hidden>TIE-BREAK — primo a 7 punti, 2 di vantaggio</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Game</div>
+      <div class="games-row">
+        <div class="games-col">
+          <span class="label" id="gamesLabelA">Squadra A</span>
+          <span class="games-count" id="gamesCountA">0</span>
+        </div>
+        <span class="games-of">su 8</span>
+        <div class="games-col">
+          <span class="label" id="gamesLabelB">Squadra B</span>
+          <span class="games-count" id="gamesCountB">0</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card rules-card">
+      <div class="card-title">Regola ufficiale BADBALL®</div>
+      <ul class="rules-list">
+        <li>Progressione punti: 15 – 30 – 40 – Gioco</li>
+        <li>Sul 40 pari: punto secco decisivo, niente vantaggi</li>
+        <li>Vince la partita chi arriva primo a 8 game</li>
+        <li>Sul 7 game pari: tie-break ai 7 punti (2 di vantaggio)</li>
+        <li>Il servizio si alterna a ogni game</li>
+      </ul>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn primary block" id="resetMatchBtn">Nuova partita</button>
+    </div>
+  </div>
+
+  <!-- DRAW PANEL -->
+  <div class="panel" id="panelDraw" hidden>
+    <div class="card">
+      <div class="card-title">Giocatori presenti</div>
+      <div class="add-row">
+        <input id="playerInput" placeholder="Nome giocatore" maxlength="20">
+        <button id="addPlayerBtn">Aggiungi</button>
+      </div>
+      <div class="players" id="playerList" style="margin-top:10px;"></div>
+      <div class="empty-note" id="emptyNote">Aggiungi almeno 2 giocatori per sorteggiare.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Formato incontri</div>
+      <div class="segmented" id="modeSegmented">
+        <button data-mode="singles" aria-pressed="true">Sfide singole</button>
+        <button data-mode="doubles" aria-pressed="false">Doppio casuale</button>
+      </div>
+      <div style="height:12px;"></div>
+      <div class="card-title">Campi disponibili</div>
+      <div class="stepper">
+        <button id="courtsMinus" aria-label="Meno campi">–</button>
+        <span class="val" id="courtsVal">1</span>
+        <button id="courtsPlus" aria-label="Più campi">+</button>
+      </div>
+    </div>
+
+    <button class="btn primary block" id="drawBtn">Sorteggia</button>
+
+    <div id="resultsWrap" hidden>
+      <div class="btn-row" style="margin-bottom:2px;">
+        <button class="btn ghost block" id="reshuffleBtn">Rimescola</button>
+      </div>
+      <div id="resultsList" style="display:flex; flex-direction:column; gap:14px;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="winner-overlay" id="winnerOverlay">
+  <div class="winner-card">
+    <div class="cup">🏆</div>
+    <h2 id="winnerName">Squadra A</h2>
+    <p>ha vinto la partita 2 set a 0</p>
+    <button class="btn primary block" id="winnerCloseBtn">Nuova partita</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var store = {
+    get:function(k,d){ try{ var v=localStorage.getItem('badball_'+k); return v===null? d : JSON.parse(v); }catch(e){ return d; } },
+    set:function(k,v){ try{ localStorage.setItem('badball_'+k, JSON.stringify(v)); }catch(e){} }
+  };
+
+  function vibrate(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
+
+  function showToast(msg){
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(showToast._h);
+    showToast._h = setTimeout(function(){ t.classList.remove('show'); }, 1800);
+  }
+
+  /* ---------- TABS ---------- */
+  var tabScoreBtn = document.getElementById('tabScoreBtn');
+  var tabDrawBtn = document.getElementById('tabDrawBtn');
+  var panelScore = document.getElementById('panelScore');
+  var panelDraw = document.getElementById('panelDraw');
+  function selectTab(which){
+    var onScore = which === 'score';
+    tabScoreBtn.setAttribute('aria-selected', onScore);
+    tabDrawBtn.setAttribute('aria-selected', !onScore);
+    panelScore.hidden = !onScore;
+    panelDraw.hidden = onScore;
+  }
+  tabScoreBtn.addEventListener('click', function(){ selectTab('score'); });
+  tabDrawBtn.addEventListener('click', function(){ selectTab('draw'); });
+
+  /* ---------- SCORE STATE (regole ufficiali BADBALL®) ---------- */
+  // Progressione 15-30-40-Gioco, sul 40 pari punto secco (no vantaggi): chi arriva a 4 punti vince il game.
+  // Partita al primo a 8 game. Sul 7-7 tie-break ai 7 punti con 2 di vantaggio.
+  var nameA = document.getElementById('nameA');
+  var nameB = document.getElementById('nameB');
+  var labelA = document.getElementById('labelA');
+  var labelB = document.getElementById('labelB');
+  var digitA = document.getElementById('digitA');
+  var digitB = document.getElementById('digitB');
+  var serveA = document.getElementById('serveA');
+  var serveB = document.getElementById('serveB');
+  var tbFlag = document.getElementById('tbFlag');
+  var gamesLabelA = document.getElementById('gamesLabelA');
+  var gamesLabelB = document.getElementById('gamesLabelB');
+  var gamesCountA = document.getElementById('gamesCountA');
+  var gamesCountB = document.getElementById('gamesCountB');
+
+  var POINT_LABELS = ['0','15','30','40'];
+
+  var state = {
+    ptsA:0, ptsB:0,
+    gamesA:0, gamesB:0,
+    server: store.get('server','A'),
+    tiebreak:false, tbA:0, tbB:0,
+    matchOver:false
+  };
+
+  nameA.value = store.get('teamA','Squadra A');
+  nameB.value = store.get('teamB','Squadra B');
+  labelA.textContent = nameA.value; labelB.textContent = nameB.value;
+  gamesLabelA.textContent = nameA.value; gamesLabelB.textContent = nameB.value;
+
+  nameA.addEventListener('input', function(){
+    labelA.textContent = nameA.value || 'Squadra A';
+    gamesLabelA.textContent = nameA.value || 'Squadra A';
+    store.set('teamA', nameA.value);
+  });
+  nameB.addEventListener('input', function(){
+    labelB.textContent = nameB.value || 'Squadra B';
+    gamesLabelB.textContent = nameB.value || 'Squadra B';
+    store.set('teamB', nameB.value);
+  });
+
+  function renderScore(){
+    digitA.textContent = state.tiebreak ? state.tbA : POINT_LABELS[state.ptsA];
+    digitB.textContent = state.tiebreak ? state.tbB : POINT_LABELS[state.ptsB];
+    gamesCountA.textContent = state.gamesA;
+    gamesCountB.textContent = state.gamesB;
+    serveA.hidden = state.server !== 'A';
+    serveB.hidden = state.server !== 'B';
+    tbFlag.hidden = !state.tiebreak;
+  }
+
+  function toggleServer(){ state.server = state.server === 'A' ? 'B' : 'A'; store.set('server', state.server); }
+
+  function endMatch(winnerTeam, note){
+    state.matchOver = true;
+    var wName = winnerTeam==='A' ? (nameA.value||'Squadra A') : (nameB.value||'Squadra B');
+    document.getElementById('winnerName').textContent = wName;
+    document.querySelector('.winner-card p').textContent = 'ha vinto la partita ' + state.gamesA + ' a ' + state.gamesB + (note? ' ' + note : '');
+    document.getElementById('winnerOverlay').classList.add('show');
+    vibrate([20,40,20]);
+  }
+
+  function onGameWon(team){
+    if(team==='A') state.gamesA++; else state.gamesB++;
+    state.ptsA=0; state.ptsB=0;
+    toggleServer();
+    showToast((team==='A'? nameA.value : nameB.value) + ' vince il game');
+    if(state.gamesA===7 && state.gamesB===7){
+      state.tiebreak = true; state.tbA=0; state.tbB=0;
+      showToast('Tie-break: primo a 7 punti, 2 di vantaggio');
+    } else if(state.gamesA>=8 || state.gamesB>=8){
+      endMatch(state.gamesA>=8 ? 'A':'B');
+    }
+  }
+
+  function addPoint(team, delta){
+    if(state.matchOver) return;
+    if(state.tiebreak){
+      if(team==='A') state.tbA = Math.max(0, state.tbA + delta);
+      else state.tbB = Math.max(0, state.tbB + delta);
+      renderScore();
+      if(delta>0){
+        vibrate(10);
+        var a=state.tbA, b=state.tbB;
+        if((a>=7||b>=7) && Math.abs(a-b)>=2){
+          var winner = a>b ? 'A':'B';
+          if(winner==='A') state.gamesA = 8; else state.gamesB = 8;
+          renderScore();
+          state.tiebreak = false;
+          endMatch(winner, '(al tie-break ' + Math.max(a,b) + '-' + Math.min(a,b) + ')');
+        }
+      }
+      return;
+    }
+    if(team==='A') state.ptsA = Math.max(0, state.ptsA + delta);
+    else state.ptsB = Math.max(0, state.ptsB + delta);
+    renderScore();
+    if(delta>0){
+      vibrate(10);
+      if(state.ptsA>=4) onGameWon('A');
+      else if(state.ptsB>=4) onGameWon('B');
+      renderScore();
+    }
+  }
+
+  document.getElementById('tileA').addEventListener('click', function(e){ if(e.target.id==='minusA') return; addPoint('A',1); });
+  document.getElementById('tileB').addEventListener('click', function(e){ if(e.target.id==='minusB') return; addPoint('B',1); });
+  document.getElementById('minusA').addEventListener('click', function(e){ e.stopPropagation(); addPoint('A',-1); });
+  document.getElementById('minusB').addEventListener('click', function(e){ e.stopPropagation(); addPoint('B',-1); });
+
+  function resetMatch(){
+    state.ptsA=0; state.ptsB=0; state.gamesA=0; state.gamesB=0;
+    state.tiebreak=false; state.tbA=0; state.tbB=0; state.matchOver=false;
+    state.server='A'; store.set('server','A');
+    renderScore();
+    document.getElementById('winnerOverlay').classList.remove('show');
+  }
+  document.getElementById('resetMatchBtn').addEventListener('click', resetMatch);
+  document.getElementById('winnerCloseBtn').addEventListener('click', resetMatch);
+
+  renderScore();
+
+  /* ---------- DRAW STATE ---------- */
+  var players = store.get('players', []);
+  var mode = store.get('mode', 'singles');
+  var courts = store.get('courts', 1);
+
+  var playerInput = document.getElementById('playerInput');
+  var addPlayerBtn = document.getElementById('addPlayerBtn');
+  var playerList = document.getElementById('playerList');
+  var emptyNote = document.getElementById('emptyNote');
+  var modeSegmented = document.getElementById('modeSegmented');
+  var courtsVal = document.getElementById('courtsVal');
+  var drawBtn = document.getElementById('drawBtn');
+  var resultsWrap = document.getElementById('resultsWrap');
+  var resultsList = document.getElementById('resultsList');
+
+  function renderPlayers(){
+    playerList.innerHTML = '';
+    players.forEach(function(name, idx){
+      var chip = document.createElement('div');
+      chip.className = 'player-chip';
+      var span = document.createElement('span');
+      span.textContent = name;
+      var btn = document.createElement('button');
+      btn.textContent = '×';
+      btn.setAttribute('aria-label', 'Rimuovi ' + name);
+      btn.addEventListener('click', function(){
+        players.splice(idx,1);
+        store.set('players', players);
+        renderPlayers();
+      });
+      chip.appendChild(span); chip.appendChild(btn);
+      playerList.appendChild(chip);
+    });
+    emptyNote.hidden = players.length >= 2;
+    drawBtn.disabled = players.length < 2;
+    drawBtn.style.opacity = players.length < 2 ? 0.5 : 1;
+  }
+
+  function addPlayer(){
+    var v = playerInput.value.trim();
+    if(!v) return;
+    players.push(v);
+    store.set('players', players);
+    playerInput.value = '';
+    renderPlayers();
+  }
+  addPlayerBtn.addEventListener('click', addPlayer);
+  playerInput.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); addPlayer(); } });
+
+  Array.prototype.forEach.call(modeSegmented.children, function(btn){
+    btn.addEventListener('click', function(){
+      Array.prototype.forEach.call(modeSegmented.children, function(b){ b.setAttribute('aria-pressed','false'); });
+      btn.setAttribute('aria-pressed','true');
+      mode = btn.dataset.mode;
+      store.set('mode', mode);
+    });
+    if(btn.dataset.mode === mode) btn.setAttribute('aria-pressed','true'); else btn.setAttribute('aria-pressed','false');
+  });
+
+  function renderCourts(){ courtsVal.textContent = courts; }
+  document.getElementById('courtsMinus').addEventListener('click', function(){
+    courts = Math.max(1, courts-1); store.set('courts', courts); renderCourts();
+  });
+  document.getElementById('courtsPlus').addEventListener('click', function(){
+    courts = Math.min(6, courts+1); store.set('courts', courts); renderCourts();
+  });
+
+  function shuffle(arr){
+    var a = arr.slice();
+    for(var i=a.length-1;i>0;i--){
+      var j = Math.floor(Math.random()*(i+1));
+      var tmp=a[i]; a[i]=a[j]; a[j]=tmp;
+    }
+    return a;
+  }
+
+  function runDraw(){
+    var pool = shuffle(players);
+    var matches = []; var bye = null; var byeUnits = [];
+
+    if(mode === 'singles'){
+      if(pool.length % 2 === 1) bye = pool.pop();
+      for(var i=0;i<pool.length;i+=2){
+        matches.push({ a:[pool[i]], b:[pool[i+1]] });
+      }
+    } else {
+      var units = [];
+      var rem = pool.slice();
+      while(rem.length >= 2){ units.push([rem.shift(), rem.shift()]); }
+      if(rem.length === 1) byeUnits.push(rem[0]);
+      if(units.length % 2 === 1){
+        var lone = units.pop();
+        byeUnits = byeUnits.concat(lone);
+      }
+      for(var k=0;k<units.length;k+=2){
+        matches.push({ a:units[k], b:units[k+1] });
+      }
+      if(byeUnits.length) bye = byeUnits.join(' & ');
+    }
+
+    resultsList.innerHTML = '';
+    if(matches.length === 0){
+      resultsList.innerHTML = '<div class="empty-note">Servono più giocatori per formare un incontro in questa modalità.</div>';
+    } else {
+      var perRound = courts;
+      var rounds = Math.ceil(matches.length / perRound);
+      var matchIdx = 0;
+      for(var r=0; r<rounds; r++){
+        var roundLabel = document.createElement('div');
+        roundLabel.className = 'round-label';
+        roundLabel.textContent = rounds > 1 ? 'Turno ' + (r+1) : 'Incontri';
+        resultsList.appendChild(roundLabel);
+        var roundWrap = document.createElement('div');
+        roundWrap.className = 'round';
+        for(var c=0; c<perRound && matchIdx < matches.length; c++, matchIdx++){
+          var m = matches[matchIdx];
+          var card = document.createElement('div');
+          card.className = 'match-card';
+          card.innerHTML =
+            '<div class="court-badge">Campo<br>' + (c+1) + '</div>' +
+            '<div class="match-sides">' +
+              '<span class="side">' + m.a.join(' &amp; ') + '</span>' +
+              '<span class="vs">VS</span>' +
+              '<span class="side">' + m.b.join(' &amp; ') + '</span>' +
+            '</div>';
+          roundWrap.appendChild(card);
+        }
+        resultsList.appendChild(roundWrap);
+      }
+    }
+    if(bye){
+      var byeCard = document.createElement('div');
+      byeCard.className = 'bye-card';
+      byeCard.textContent = 'A riposo: ' + bye;
+      resultsList.appendChild(byeCard);
+    }
+    resultsWrap.hidden = false;
+  }
+
+  drawBtn.addEventListener('click', runDraw);
+  document.getElementById('reshuffleBtn').addEventListener('click', runDraw);
+
+  renderPlayers();
+  renderCourts();
+})();
+</script>
