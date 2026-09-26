@@ -240,7 +240,6 @@
 
   @media (prefers-reduced-motion: reduce){ *{transition:none !important;} }
 </style>
-</head>
 <body>
 
 <div class="shell">
@@ -263,13 +262,21 @@
     <!-- SETUP -->
     <div id="torneoSetup">
       <div class="card">
+        <div class="card-title">Tipo di torneo</div>
+        <div class="segmented" id="tTournamentSegmented">
+          <button data-tournament="girone" aria-pressed="true">Girone all'italiana</button>
+          <button data-tournament="eliminazione" aria-pressed="false">Eliminazione diretta</button>
+        </div>
+      </div>
+
+      <div class="card">
         <div class="card-title">Giocatori</div>
         <div class="add-row">
           <input id="tPlayerInput" placeholder="Nome giocatore" maxlength="20">
           <button id="tAddPlayerBtn">Aggiungi</button>
         </div>
         <div class="players" id="tPlayerList" style="margin-top:10px;"></div>
-        <div class="empty-note" id="tEmptyNote">Aggiungi almeno 2 giocatori per il girone.</div>
+        <div class="empty-note" id="tEmptyNote">Aggiungi almeno 2 giocatori per iniziare.</div>
       </div>
 
       <div class="card">
@@ -279,6 +286,16 @@
           <button data-format="doppio" aria-pressed="false">Doppio</button>
         </div>
         <div class="empty-note" id="tDoublesWarning" hidden style="margin-top:8px;">Per il doppio serve un numero pari di giocatori (min. 4).</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Campi disponibili</div>
+        <div class="stepper">
+          <button id="tCourtsMinus" aria-label="Meno campi">–</button>
+          <span class="val" id="tCourtsVal">1</span>
+          <button id="tCourtsPlus" aria-label="Più campi">+</button>
+        </div>
+        <div class="empty-note" style="margin-top:8px;">Solo per etichettare su quale campo giocare ogni partita — il punteggio resta uno alla volta.</div>
       </div>
 
       <button class="btn primary block" id="tStartBtn">Genera calendario e inizia</button>
@@ -324,7 +341,7 @@
 
       <div class="final-banner" id="torneoFinalBanner" hidden>🏆 Girone terminato — classifica finale qui sotto</div>
 
-      <div class="card">
+      <div class="card" id="standingsCardWrap">
         <div class="card-title">Classifica</div>
         <div style="overflow-x:auto;">
           <table class="standings-table" id="standingsTable">
@@ -337,7 +354,7 @@
       </div>
 
       <div class="card">
-        <div class="card-title">Calendario</div>
+        <div class="card-title" id="scheduleCardTitle">Calendario</div>
         <div id="scheduleList" style="display:flex; flex-direction:column; gap:8px;"></div>
       </div>
 
@@ -592,7 +609,7 @@
     document.getElementById('resetMatchBtn').addEventListener('click', function(){ engine.resetForNewMatch(); });
   })();
 
-  /* ================= TORNEO (girone all'italiana con classifica automatica) ================= */
+  /* ================= TORNEO (girone all'italiana + eliminazione diretta) ================= */
   (function(){
     var torneoSetup = document.getElementById('torneoSetup');
     var torneoPlay = document.getElementById('torneoPlay');
@@ -601,17 +618,51 @@
     var tPlayerList = document.getElementById('tPlayerList');
     var tEmptyNote = document.getElementById('tEmptyNote');
     var tFormatSegmented = document.getElementById('tFormatSegmented');
+    var tTournamentSegmented = document.getElementById('tTournamentSegmented');
     var tDoublesWarning = document.getElementById('tDoublesWarning');
+    var tCourtsMinus = document.getElementById('tCourtsMinus');
+    var tCourtsPlus = document.getElementById('tCourtsPlus');
+    var tCourtsVal = document.getElementById('tCourtsVal');
     var tStartBtn = document.getElementById('tStartBtn');
     var tProgressText = document.getElementById('tProgressText');
     var scheduleList = document.getElementById('scheduleList');
     var standingsBody = document.getElementById('standingsBody');
+    var standingsCardWrap = document.getElementById('standingsCardWrap');
+    var scheduleCardTitle = document.getElementById('scheduleCardTitle');
     var torneoFinalBanner = document.getElementById('torneoFinalBanner');
     var torneoMatchCard = document.getElementById('torneoMatchCard');
 
     var players = store.get('tPlayers', []);
     var format = store.get('tFormat', 'singolo');
-    var tournament = null; // { queue:[{round,a,b,played,result}], idx, standings:{label:{w,l,gf,gs}} }
+    var tournamentFormat = store.get('tTournamentFormat', 'girone');
+    var courts = store.get('tCourts', 1);
+    var tournament = null;
+    // girone:      { mode:'girone', queue:[{round,a,b,played,result,court}], idx, standings:{label:{w,l,gf,gs}} }
+    // eliminazione:{ mode:'eliminazione', rounds:[[{a,b,bye,played,result,winner,court}]], champion }
+
+    tCourtsVal.textContent = String(courts);
+
+    function clampCourts(n){ return Math.max(1, Math.min(8, n)); }
+    tCourtsMinus.addEventListener('click', function(){
+      courts = clampCourts(courts - 1);
+      tCourtsVal.textContent = String(courts);
+      store.set('tCourts', courts);
+    });
+    tCourtsPlus.addEventListener('click', function(){
+      courts = clampCourts(courts + 1);
+      tCourtsVal.textContent = String(courts);
+      store.set('tCourts', courts);
+    });
+
+    Array.prototype.forEach.call(tTournamentSegmented.children, function(btn){
+      btn.addEventListener('click', function(){
+        Array.prototype.forEach.call(tTournamentSegmented.children, function(b){ b.setAttribute('aria-pressed','false'); });
+        btn.setAttribute('aria-pressed','true');
+        tournamentFormat = btn.dataset.tournament;
+        store.set('tTournamentFormat', tournamentFormat);
+      });
+      if(btn.dataset.tournament === tournamentFormat) btn.setAttribute('aria-pressed','true'); else btn.setAttribute('aria-pressed','false');
+    });
 
     function renderPlayers(){
       tPlayerList.innerHTML = '';
@@ -720,20 +771,181 @@
       });
     }
 
+    function courtLabel(m){
+      return courts > 1 ? ('<div style="font-size:11px; color:var(--ink-soft); white-space:nowrap;">Campo ' + m.court + '</div>') : '';
+    }
+
     function renderSchedule(){
       scheduleList.innerHTML = '';
       tournament.queue.forEach(function(m, i){
         var card = document.createElement('div');
         card.className = 'match-card' + (m.played ? ' done' : (i === tournament.idx ? ' current' : ''));
-        var resultText = m.played ? (' <span style="color:var(--ink-soft); font-weight:600;">(' + m.result + ')</span>') : '';
         card.innerHTML =
           '<div class="court-badge">T' + m.round + '</div>' +
-          '<div class="match-sides"><span class="side">' + m.a.label + '</span><span class="vs">VS</span><span class="side">' + m.b.label + '</span></div>';
-        if(resultText) card.innerHTML += '<div style="font-size:11px; color:var(--ink-soft); white-space:nowrap;">' + m.result + '</div>';
+          '<div class="match-sides"><span class="side">' + m.a.label + '</span><span class="vs">VS</span><span class="side">' + m.b.label + '</span></div>' +
+          courtLabel(m);
+        if(m.played) card.innerHTML += '<div style="font-size:11px; color:var(--ink-soft); white-space:nowrap;">' + m.result + '</div>';
         scheduleList.appendChild(card);
       });
     }
 
+    // ---------- ELIMINAZIONE DIRETTA ----------
+    function roundLabel(matchesInRound, totalMatchesInRound){
+      var n = totalMatchesInRound || matchesInRound;
+      if(n === 1) return 'Finale';
+      if(n === 2) return 'Semifinale';
+      if(n === 4) return 'Quarti di finale';
+      if(n === 8) return 'Ottavi di finale';
+      return 'Turno da ' + (n*2);
+    }
+    function roundShortBadge(n){
+      if(n === 1) return 'F';
+      if(n === 2) return 'SF';
+      if(n === 4) return 'QF';
+      if(n === 8) return 'OF';
+      return 'T' + (n*2);
+    }
+    function autoResolveByes(round){
+      round.forEach(function(m){
+        if(m.bye && !m.played){ m.played = true; m.winner = m.a; m.result = 'bye'; }
+      });
+    }
+    function assignCourts(round){
+      round.forEach(function(m, i){ m.court = (i % courts) + 1; });
+    }
+    function nextUnplayedIndex(round){
+      for(var i=0;i<round.length;i++){ if(!round[i].played) return i; }
+      return -1;
+    }
+    function buildNextRound(prevRound){
+      var winners = prevRound.map(function(m){ return m.winner; });
+      var round = [];
+      for(var i=0;i<winners.length;i+=2){
+        var a = winners[i], b = winners[i+1];
+        round.push({ a: a, b: b || null, bye: !b, played:false, result:null, winner:null });
+      }
+      return round;
+    }
+    function renderBracket(){
+      scheduleList.innerHTML = '';
+      tournament.rounds.forEach(function(round, ri){
+        var label = document.createElement('div');
+        label.className = 'round-label';
+        label.textContent = roundLabel(0, round.length);
+        scheduleList.appendChild(label);
+        var wrap = document.createElement('div');
+        wrap.className = 'round';
+        round.forEach(function(m, mi){
+          var isCurrent = ri === tournament.curRoundIdx && mi === tournament.curMatchIdx && !m.played;
+          if(m.bye){
+            var byeCard = document.createElement('div');
+            byeCard.className = 'bye-card';
+            byeCard.textContent = m.a.label + ' passa il turno (bye)';
+            wrap.appendChild(byeCard);
+          } else {
+            var card = document.createElement('div');
+            card.className = 'match-card' + (m.played ? ' done' : (isCurrent ? ' current' : ''));
+            var bLabel = m.b ? m.b.label : '—';
+            card.innerHTML =
+              '<div class="court-badge">' + roundShortBadge(round.length) + '</div>' +
+              '<div class="match-sides"><span class="side">' + m.a.label + '</span><span class="vs">VS</span><span class="side">' + bLabel + '</span></div>' +
+              courtLabel(m);
+            if(m.played) card.innerHTML += '<div style="font-size:11px; color:var(--ink-soft); white-space:nowrap;">' + m.result + '</div>';
+            wrap.appendChild(card);
+          }
+        });
+        scheduleList.appendChild(wrap);
+      });
+    }
+    function goToNextElimMatch(){
+      var round = tournament.rounds[tournament.rounds.length-1];
+      var idx = nextUnplayedIndex(round);
+      while(idx === -1){
+        if(round.length === 1){
+          tournament.champion = round[0].winner;
+          torneoMatchCard.hidden = true;
+          torneoFinalBanner.hidden = false;
+          torneoFinalBanner.textContent = '🏆 Campione del torneo: ' + tournament.champion.label;
+          renderBracket();
+          return;
+        }
+        var next = buildNextRound(round);
+        assignCourts(next);
+        autoResolveByes(next);
+        tournament.rounds.push(next);
+        round = next;
+        idx = nextUnplayedIndex(round);
+      }
+      tournament.curRoundIdx = tournament.rounds.length-1;
+      tournament.curMatchIdx = idx;
+      loadElimMatch();
+    }
+    function loadElimMatch(){
+      var m = tournament.rounds[tournament.curRoundIdx][tournament.curMatchIdx];
+      document.getElementById('tLabelA').textContent = m.a.label;
+      document.getElementById('tLabelB').textContent = m.b.label;
+      document.getElementById('tGamesLabelA').textContent = m.a.label;
+      document.getElementById('tGamesLabelB').textContent = m.b.label;
+      var round = tournament.rounds[tournament.curRoundIdx];
+      tProgressText.textContent = roundLabel(0, round.length) + (courts > 1 ? ' · Campo ' + m.court : '');
+      if(engine) engine.resetForNewMatch();
+      renderBracket();
+    }
+    function onElimMatchEnd(winner, gamesA, gamesB, note){
+      var round = tournament.rounds[tournament.curRoundIdx];
+      var m = round[tournament.curMatchIdx];
+      m.played = true;
+      m.result = gamesA + '-' + gamesB;
+      m.winner = winner === 'A' ? m.a : m.b;
+      renderBracket();
+
+      var isFinal = round.length === 1;
+      var noteText = 'ha vinto la partita ' + gamesA + ' a ' + gamesB + (note ? ' ' + note : '');
+      showWinnerOverlay(m.winner.label, noteText, isFinal ? 'Vedi il campione' : 'Prossima partita', function(){
+        goToNextElimMatch();
+      });
+    }
+    function startElimination(){
+      var participants = buildParticipants();
+      var pool = shuffle(participants);
+      var size = 1;
+      while(size < pool.length) size *= 2;
+      var byes = size - pool.length;
+      var round1 = [];
+      var pi = 0;
+      for(var i=0;i<size/2;i++){
+        if(i < byes){
+          round1.push({ a: pool[pi++], b: null, bye:true, played:false, result:null, winner:null });
+        } else {
+          round1.push({ a: pool[pi++], b: pool[pi++], bye:false, played:false, result:null, winner:null });
+        }
+      }
+      assignCourts(round1);
+      autoResolveByes(round1);
+      tournament = { mode:'eliminazione', rounds:[round1], champion:null, curRoundIdx:0, curMatchIdx:0 };
+
+      torneoFinalBanner.hidden = true;
+      torneoMatchCard.hidden = false;
+      torneoSetup.hidden = true;
+      torneoPlay.hidden = false;
+      standingsCardWrap.hidden = true;
+      scheduleCardTitle.textContent = 'Tabellone';
+
+      engine = createScoreEngine({
+        digitA: document.getElementById('tDigitA'), digitB: document.getElementById('tDigitB'),
+        serveA: document.getElementById('tServeA'), serveB: document.getElementById('tServeB'),
+        tbFlag: document.getElementById('tTbFlag'),
+        gamesCountA: document.getElementById('tGamesCountA'), gamesCountB: document.getElementById('tGamesCountB'),
+        tileA: document.getElementById('tTileA'), tileB: document.getElementById('tTileB'),
+        minusA: document.getElementById('tMinusA'), minusB: document.getElementById('tMinusB'),
+        nameA: function(){ return tournament.rounds[tournament.curRoundIdx][tournament.curMatchIdx].a.label; },
+        nameB: function(){ return tournament.rounds[tournament.curRoundIdx][tournament.curMatchIdx].b.label; }
+      }, onElimMatchEnd);
+
+      goToNextElimMatch();
+    }
+
+    // ---------- GIRONE ALL'ITALIANA ----------
     var engine = null;
     function loadMatch(){
       var m = tournament.queue[tournament.idx];
@@ -741,7 +953,7 @@
       document.getElementById('tLabelB').textContent = m.b.label;
       document.getElementById('tGamesLabelA').textContent = m.a.label;
       document.getElementById('tGamesLabelB').textContent = m.b.label;
-      tProgressText.textContent = 'Partita ' + (tournament.idx+1) + ' di ' + tournament.queue.length + ' · Turno ' + m.round;
+      tProgressText.textContent = 'Partita ' + (tournament.idx+1) + ' di ' + tournament.queue.length + ' · Turno ' + m.round + (courts > 1 ? ' · Campo ' + m.court : '');
       if(engine) engine.resetForNewMatch();
       renderSchedule();
     }
@@ -766,6 +978,7 @@
         if(isLast){
           torneoMatchCard.hidden = true;
           torneoFinalBanner.hidden = false;
+          torneoFinalBanner.textContent = '🏆 Girone terminato — classifica finale qui sotto';
           renderSchedule();
         } else {
           tournament.idx++;
@@ -774,7 +987,7 @@
       });
     }
 
-    function startTournament(){
+    function startGirone(){
       var participants = buildParticipants();
       var rounds = roundRobinRounds(participants);
       var queue = [];
@@ -783,14 +996,17 @@
           queue.push({ round: ri+1, a: pair[0], b: pair[1], played:false, result:null });
         });
       });
+      assignCourts(queue);
       var standings = {};
       participants.forEach(function(p){ standings[p.label] = { w:0, l:0, gf:0, gs:0 }; });
-      tournament = { queue: queue, idx: 0, standings: standings };
+      tournament = { mode:'girone', queue: queue, idx: 0, standings: standings };
 
       torneoFinalBanner.hidden = true;
       torneoMatchCard.hidden = false;
       torneoSetup.hidden = true;
       torneoPlay.hidden = false;
+      standingsCardWrap.hidden = false;
+      scheduleCardTitle.textContent = 'Calendario';
 
       engine = createScoreEngine({
         digitA: document.getElementById('tDigitA'), digitB: document.getElementById('tDigitB'),
@@ -806,6 +1022,11 @@
       renderStandings();
       loadMatch();
     }
+
+    function startTournament(){
+      if(tournamentFormat === 'eliminazione') startElimination();
+      else startGirone();
+    }
     tStartBtn.addEventListener('click', startTournament);
 
     document.getElementById('tCancelBtn').addEventListener('click', function(){
@@ -818,6 +1039,5 @@
   })();
 })();
 </script>
-
 </body>
 </html>
