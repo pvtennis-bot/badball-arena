@@ -182,11 +182,10 @@
   }
   .player-chip.selected span{ color:#06222a; }
   .player-chip.selected button{ background:rgba(0,0,0,0.18); color:#06222a; }
-  .player-chip.from-group{
-    box-shadow:0 0 0 2px var(--cork) inset;
-  }
-  .player-chip.selected.from-group{
-    box-shadow:0 0 0 2px var(--cork) inset, 0 0 0 1px rgba(0,0,0,0.15);
+  .player-chip.from-group{ padding-left:8px; }
+  .player-chip.from-group::before{
+    content:''; display:block; width:9px; height:9px; border-radius:50%;
+    background:var(--cork); border:1.5px solid var(--chalk); flex:none;
   }
   .player-chip span{cursor:pointer; -webkit-user-select:none; user-select:none;}
   .player-chip button{
@@ -561,7 +560,7 @@
     </div>
   </div>
 
-  <div class="footer-note">BADBALL® è un marchio registrato · v1.9.3</div>
+  <div class="footer-note">BADBALL® è un marchio registrato · v1.9.4</div>
 </div>
 
 <div class="toast" id="toast"></div>
