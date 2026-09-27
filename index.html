@@ -326,12 +326,6 @@
 
     <!-- SETUP -->
     <div id="torneoSetup">
-      <div class="card" id="historyCardWrap" hidden>
-        <div class="card-title">Storico tornei</div>
-        <div id="historyList" style="display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto;"></div>
-        <button class="btn ghost block" id="clearHistoryBtn" style="margin-top:10px;">Cancella storico</button>
-      </div>
-
       <div class="card">
         <div class="card-title">Tipo di torneo</div>
         <div class="segmented" id="tTournamentSegmented">
@@ -379,35 +373,46 @@
 
       <button class="btn primary block" id="tStartBtn">Genera calendario e inizia</button>
 
-      <div class="card">
-        <div class="card-title">Backup dati</div>
-        <div class="empty-note" style="margin-bottom:10px;">Rubrica, gruppi e storico restano solo su questo dispositivo/browser.</div>
+      <div class="empty-note" id="advancedToggle" style="margin-top:22px; text-align:center; text-decoration:underline; cursor:pointer; font-size:14px;">⚙️ Altro (storico, backup, reset)</div>
+      <div id="advancedWrap" hidden style="margin-top:10px;">
 
-        <div class="card-title" style="font-size:14px; margin-top:2px;">1. Salvare una copia</div>
-        <button class="btn primary block" id="genBackupBtn">Genera testo di backup</button>
-        <div class="empty-note" id="backupGenNote" hidden style="margin-top:8px;">Testo pronto qui sotto, già selezionato: tienilo premuto col dito e scegli "Copia", poi incollalo dove vuoi tenerlo (Note, WhatsApp a te stesso, email...).</div>
-        <textarea id="exportTextArea" readonly hidden style="width:100%; min-height:90px; margin-top:8px; border:1px solid var(--line); border-radius:10px; padding:10px; font-size:12px; background:var(--chalk); color:var(--ink); font-family:monospace;"></textarea>
-        <button class="btn ghost block" id="copyBackupBtn" hidden style="margin-top:8px;">📋 Prova a copiare automaticamente</button>
-
-        <div class="card-title" style="font-size:14px; margin-top:18px;">2. Ripristinare un backup</div>
-        <div class="empty-note" style="margin-bottom:8px;">Incolla qui sotto il testo salvato in precedenza (tieni premuto nella casella → Incolla):</div>
-        <textarea id="importPasteArea" placeholder="Incolla qui il testo del backup" style="width:100%; min-height:90px; border:1px solid var(--line); border-radius:10px; padding:10px; font-size:12px; background:var(--chalk); color:var(--ink); font-family:monospace;"></textarea>
-        <button class="btn primary block" id="importPasteBtn" style="margin-top:8px;">Importa</button>
-
-        <div class="empty-note" id="importFileToggle" style="margin-top:14px; text-decoration:underline; cursor:pointer;">Preferisci un file invece del testo?</div>
-        <div id="importFileWrap" hidden style="margin-top:8px;">
-          <div class="btn-row">
-            <button class="btn ghost" id="exportBackupBtn">📤 Esporta file</button>
-            <button class="btn ghost" id="importBackupBtn">📥 Scegli file</button>
-          </div>
-          <input type="file" id="importBackupInput" hidden>
+        <div class="card" id="historyCardWrap" hidden>
+          <div class="card-title">Storico tornei</div>
+          <div id="historyList" style="display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto;"></div>
+          <button class="btn ghost block" id="clearHistoryBtn" style="margin-top:10px;">Cancella storico</button>
         </div>
-      </div>
 
-      <div class="card">
-        <div class="card-title" style="color:#c0392b;">Reset completo</div>
-        <div class="empty-note" style="margin-bottom:10px;">Cancella rubrica, gruppi salvati e storico tornei da questo dispositivo, per ripartire come app appena installata. Fai prima un backup se ti serve tenere qualcosa.</div>
-        <button class="btn ghost block" id="fullResetBtn" style="border-color:#c0392b; color:#c0392b;">🗑️ Cancella tutto e riparti da zero</button>
+        <div class="card">
+          <div class="card-title">Backup dati</div>
+          <div class="empty-note" style="margin-bottom:10px;">Rubrica, gruppi e storico restano solo su questo dispositivo/browser.</div>
+
+          <div class="card-title" style="font-size:14px; margin-top:2px;">1. Salvare una copia</div>
+          <button class="btn primary block" id="genBackupBtn">Genera testo di backup</button>
+          <div class="empty-note" id="backupGenNote" hidden style="margin-top:8px;">Testo pronto qui sotto, già selezionato: tienilo premuto col dito e scegli "Copia", poi incollalo dove vuoi tenerlo (Note, WhatsApp a te stesso, email...).</div>
+          <textarea id="exportTextArea" readonly hidden style="width:100%; min-height:90px; margin-top:8px; border:1px solid var(--line); border-radius:10px; padding:10px; font-size:12px; background:var(--chalk); color:var(--ink); font-family:monospace;"></textarea>
+          <button class="btn ghost block" id="copyBackupBtn" hidden style="margin-top:8px;">📋 Prova a copiare automaticamente</button>
+
+          <div class="card-title" style="font-size:14px; margin-top:18px;">2. Ripristinare un backup</div>
+          <div class="empty-note" style="margin-bottom:8px;">Incolla qui sotto il testo salvato in precedenza (tieni premuto nella casella → Incolla):</div>
+          <textarea id="importPasteArea" placeholder="Incolla qui il testo del backup" style="width:100%; min-height:90px; border:1px solid var(--line); border-radius:10px; padding:10px; font-size:12px; background:var(--chalk); color:var(--ink); font-family:monospace;"></textarea>
+          <button class="btn primary block" id="importPasteBtn" style="margin-top:8px;">Importa</button>
+
+          <div class="empty-note" id="importFileToggle" style="margin-top:14px; text-decoration:underline; cursor:pointer;">Preferisci un file invece del testo?</div>
+          <div id="importFileWrap" hidden style="margin-top:8px;">
+            <div class="btn-row">
+              <button class="btn ghost" id="exportBackupBtn">📤 Esporta file</button>
+              <button class="btn ghost" id="importBackupBtn">📥 Scegli file</button>
+            </div>
+            <input type="file" id="importBackupInput" hidden>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title" style="color:#c0392b;">Reset completo</div>
+          <div class="empty-note" style="margin-bottom:10px;">Cancella rubrica, gruppi salvati e storico tornei da questo dispositivo, per ripartire come app appena installata. Fai prima un backup se ti serve tenere qualcosa.</div>
+          <button class="btn ghost block" id="fullResetBtn" style="border-color:#c0392b; color:#c0392b;">🗑️ Cancella tutto e riparti da zero</button>
+        </div>
+
       </div>
     </div>
 
@@ -547,7 +552,7 @@
     </div>
   </div>
 
-  <div class="footer-note">BADBALL® è un marchio registrato · v1.8.1</div>
+  <div class="footer-note">BADBALL® è un marchio registrato · v1.9</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1047,6 +1052,12 @@
       var text = importPasteArea.value.trim();
       if(!text){ showToast('Incolla prima il testo del backup'); return; }
       applyBackupText(text);
+    });
+    var advancedToggle = document.getElementById('advancedToggle');
+    var advancedWrap = document.getElementById('advancedWrap');
+    advancedToggle.addEventListener('click', function(){
+      advancedWrap.hidden = !advancedWrap.hidden;
+      advancedToggle.textContent = advancedWrap.hidden ? '⚙️ Altro (storico, backup, reset)' : '▲ Nascondi';
     });
     var fullResetBtn = document.getElementById('fullResetBtn');
     fullResetBtn.addEventListener('click', function(){
