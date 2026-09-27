@@ -403,6 +403,12 @@
           <input type="file" id="importBackupInput" hidden>
         </div>
       </div>
+
+      <div class="card">
+        <div class="card-title" style="color:#c0392b;">Reset completo</div>
+        <div class="empty-note" style="margin-bottom:10px;">Cancella rubrica, gruppi salvati e storico tornei da questo dispositivo, per ripartire come app appena installata. Fai prima un backup se ti serve tenere qualcosa.</div>
+        <button class="btn ghost block" id="fullResetBtn" style="border-color:#c0392b; color:#c0392b;">🗑️ Cancella tutto e riparti da zero</button>
+      </div>
     </div>
 
     <!-- PLAY -->
@@ -541,7 +547,7 @@
     </div>
   </div>
 
-  <div class="footer-note">BADBALL® è un marchio registrato · v1.8</div>
+  <div class="footer-note">BADBALL® è un marchio registrato · v1.8.1</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1041,6 +1047,18 @@
       var text = importPasteArea.value.trim();
       if(!text){ showToast('Incolla prima il testo del backup'); return; }
       applyBackupText(text);
+    });
+    var fullResetBtn = document.getElementById('fullResetBtn');
+    fullResetBtn.addEventListener('click', function(){
+      if(!confirm('Cancellare TUTTO (rubrica, gruppi salvati, storico tornei) da questo dispositivo? Se non hai un backup, i dati andranno persi per sempre.')) return;
+      if(!confirm('Confermi? Questa azione non si può annullare.')) return;
+      var toRemove = [];
+      for(var i=0; i<localStorage.length; i++){
+        var k = localStorage.key(i);
+        if(k && k.indexOf('badball_') === 0) toRemove.push(k);
+      }
+      toRemove.forEach(function(k){ localStorage.removeItem(k); });
+      location.reload();
     });
     tAddPlayerBtn.addEventListener('click', addPlayer);
     tPlayerInput.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); addPlayer(); } });
