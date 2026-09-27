@@ -531,7 +531,7 @@
     </div>
   </div>
 
-  <div class="footer-note">BADBALL® è un marchio registrato · v1.7.3</div>
+  <div class="footer-note">BADBALL® è un marchio registrato · v1.7.4</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1192,9 +1192,15 @@
       return out;
     }
 
+    function isValidFinalGamesScore(a, b){
+      // Regola ufficiale: si vince al primo a 8 game; sul 7-7 tie-break, risultato finale sempre 8-7.
+      // Quindi un punteggio finale valido ha sempre un lato a 8 e l'altro tra 0 e 7 — mai 8-8, mai oltre 8.
+      var hi = Math.max(a, b), lo = Math.min(a, b);
+      return hi === 8 && lo <= 7;
+    }
     function finishSideMatch(m){
-      if(m.sideA === m.sideB){
-        showToast('Serve un vincitore: il punteggio non può essere pari');
+      if(!isValidFinalGamesScore(m.sideA, m.sideB)){
+        showToast('Punteggio non valido: si finisce 8 a X (max 6), oppure 8 a 7 dopo il tie-break sul 7 pari');
         return;
       }
       var gamesA = m.sideA, gamesB = m.sideB;
@@ -1255,8 +1261,8 @@
           btn.addEventListener('click', function(){
             var side = btn.getAttribute('data-side');
             var delta = btn.classList.contains('side-plus') ? 1 : -1;
-            if(side === 'A'){ m.sideA = Math.max(0, m.sideA + delta); valA.textContent = m.sideA; }
-            else { m.sideB = Math.max(0, m.sideB + delta); valB.textContent = m.sideB; }
+            if(side === 'A'){ m.sideA = Math.min(8, Math.max(0, m.sideA + delta)); valA.textContent = m.sideA; }
+            else { m.sideB = Math.min(8, Math.max(0, m.sideB + delta)); valB.textContent = m.sideB; }
           });
         });
         card.querySelector('.side-finish-btn').addEventListener('click', function(){
