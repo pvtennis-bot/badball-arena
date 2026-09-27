@@ -174,10 +174,19 @@
   .player-chip{
     display:flex; align-items:center; gap:6px; background:var(--surface); color:var(--ink-soft);
     border:1px solid var(--line); border-radius:999px; padding:6px 6px 6px 12px; font-size:13px; font-weight:600;
-    opacity:0.55; transition:background .15s ease, color .15s ease, opacity .15s ease, border-color .15s ease;
+    opacity:0.45; filter:grayscale(0.6); transition:background .15s ease, color .15s ease, opacity .15s ease, border-color .15s ease, filter .15s ease;
   }
   .player-chip.selected{
-    background:var(--court-soft); color:var(--ink); border-color:transparent; opacity:1;
+    background:var(--court); color:#06222a; border-color:transparent; opacity:1; filter:none;
+    font-weight:800; box-shadow:0 0 0 1px rgba(0,0,0,0.15);
+  }
+  .player-chip.selected span{ color:#06222a; }
+  .player-chip.selected button{ background:rgba(0,0,0,0.18); color:#06222a; }
+  .player-chip.from-group{
+    box-shadow:0 0 0 2px var(--cork) inset;
+  }
+  .player-chip.selected.from-group{
+    box-shadow:0 0 0 2px var(--cork) inset, 0 0 0 1px rgba(0,0,0,0.15);
   }
   .player-chip span{cursor:pointer; -webkit-user-select:none; user-select:none;}
   .player-chip button{
@@ -347,7 +356,7 @@
           <button id="tAddPlayerBtn">Aggiungi</button>
         </div>
         <div class="players" id="tPlayerList" style="margin-top:10px;"></div>
-        <div class="empty-note" style="margin-top:8px;">Tocca un nome per selezionarlo/deselezionarlo per il prossimo torneo · ✕ per rimuoverlo definitivamente.</div>
+        <div class="empty-note" style="margin-top:8px;">Tocca un nome per selezionarlo/deselezionarlo per il prossimo torneo · ✕ per rimuoverlo definitivamente. Bordo giallo = arriva dal gruppo caricato.</div>
         <div class="empty-note" id="tEmptyNote">Seleziona almeno 2 giocatori per iniziare.</div>
         <button class="btn ghost block" id="saveGroupBtn" style="margin-top:10px;">💾 Salva selezione come gruppo</button>
       </div>
@@ -552,7 +561,7 @@
     </div>
   </div>
 
-  <div class="footer-note">BADBALL® è un marchio registrato · v1.9.1</div>
+  <div class="footer-note">BADBALL® è un marchio registrato · v1.9.3</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -825,11 +834,15 @@
     function isPlayerSelected(name){ return selectedPlayers.indexOf(name) !== -1; }
     function selectedPlayersList(){ return players.filter(isPlayerSelected); }
 
+    var groupOriginPlayers = []; // solo visivo: chi arriva dall'ultimo gruppo caricato, per distinguerlo da chi aggiungi a mano dopo
+
     function renderPlayers(){
       tPlayerList.innerHTML = '';
       players.forEach(function(name, idx){
         var chip = document.createElement('div');
-        chip.className = 'player-chip' + (isPlayerSelected(name) ? ' selected' : '');
+        chip.className = 'player-chip'
+          + (isPlayerSelected(name) ? ' selected' : '')
+          + (groupOriginPlayers.indexOf(name) !== -1 ? ' from-group' : '');
         var span = document.createElement('span');
         span.textContent = name;
         span.addEventListener('click', function(){
@@ -912,6 +925,7 @@
       if(addedBack > 0) store.set('tPlayers', players);
       selectedPlayers = group.players.slice();
       store.set('tSelectedPlayers', selectedPlayers);
+      groupOriginPlayers = group.players.slice();
       renderPlayers();
       if(addedBack > 0){
         showToast('Gruppo "' + group.name + '" caricato (' + addedBack + ' giocatori rimessi in rubrica)');
