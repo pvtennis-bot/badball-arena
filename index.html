@@ -531,7 +531,7 @@
     </div>
   </div>
 
-  <div class="footer-note">BADBALL® è un marchio registrato · v1.7.4</div>
+  <div class="footer-note">BADBALL® è un marchio registrato · v1.7.5</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -748,6 +748,7 @@
     var torneoFinalBanner = document.getElementById('torneoFinalBanner');
     var torneoMatchCard = document.getElementById('torneoMatchCard');
     var tExportWaBtn = document.getElementById('tExportWaBtn');
+    var tCancelBtn = document.getElementById('tCancelBtn');
     var historyCardWrap = document.getElementById('historyCardWrap');
     var historyList = document.getElementById('historyList');
     var clearHistoryBtn = document.getElementById('clearHistoryBtn');
@@ -1375,6 +1376,7 @@
           torneoMatchCard.hidden = true;
           torneoFinalBanner.hidden = false;
           torneoFinalBanner.textContent = '🏆 Campione del torneo: ' + tournament.champion.label;
+          tCancelBtn.textContent = 'Nuovo torneo';
           var elimWaText = buildElimExportText();
           tExportWaBtn.hidden = false;
           tExportWaBtn.onclick = function(){ openWhatsApp(elimWaText); };
@@ -1453,6 +1455,7 @@
       torneoPlay.hidden = false;
       standingsCardWrap.hidden = true;
       scheduleCardTitle.textContent = 'Tabellone';
+      tCancelBtn.textContent = 'Annulla torneo';
 
       engine = createScoreEngine({
         digitA: document.getElementById('tDigitA'), digitB: document.getElementById('tDigitB'),
@@ -1511,6 +1514,7 @@
           torneoMatchCard.hidden = true;
           torneoFinalBanner.hidden = false;
           torneoFinalBanner.textContent = '🏆 Girone terminato — classifica finale qui sotto';
+          tCancelBtn.textContent = 'Nuovo torneo';
           var gironeWaText = buildGironeExportText();
           tExportWaBtn.hidden = false;
           tExportWaBtn.onclick = function(){ openWhatsApp(gironeWaText); };
@@ -1552,6 +1556,7 @@
       torneoPlay.hidden = false;
       standingsCardWrap.hidden = false;
       scheduleCardTitle.textContent = 'Calendario';
+      tCancelBtn.textContent = 'Annulla torneo';
 
       engine = createScoreEngine({
         digitA: document.getElementById('tDigitA'), digitB: document.getElementById('tDigitB'),
