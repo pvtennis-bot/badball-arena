@@ -245,9 +245,32 @@
   .match-card.done{opacity:0.45;}
   .match-card.current{border-color:var(--cork); box-shadow:0 0 0 1px var(--cork) inset;}
 
+  /* Partite in contemporanea (campi non seguiti dal vivo) */
+  .side-match-card{
+    background:var(--chalk); border:1px solid var(--line); border-radius:14px; padding:10px 12px; margin-bottom:8px;
+  }
+  .side-match-card:last-child{margin-bottom:0;}
+  .side-match-head{display:flex; justify-content:flex-end; margin-bottom:6px;}
+  .court-chip{
+    font-size:10px; font-weight:800; letter-spacing:0.4px; text-transform:uppercase; color:var(--chalk);
+    background:var(--court); padding:3px 8px; border-radius:999px;
+  }
+  .side-match-row{display:flex; gap:10px;}
+  .side-team{flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:6px;}
+  .side-team-name{font-size:12px; font-weight:700; color:var(--ink-soft); text-align:center; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .side-stepper{display:flex; align-items:center; gap:8px;}
+  .side-stepper button{
+    width:26px; height:26px; border-radius:50%; border:1px solid var(--line); background:var(--surface); color:var(--ink);
+    font-size:14px; font-weight:800;
+  }
+  .side-val{font-family:'Barlow Condensed',sans-serif; font-weight:900; font-size:20px; min-width:20px; text-align:center; font-variant-numeric:tabular-nums;}
+  .side-finish-btn{font-size:11px; padding:8px 10px; margin-top:8px;}
+
   @media (prefers-reduced-motion: reduce){ *{transition:none !important;} }
 </style>
+</head>
 <body>
+
 
 <div class="shell">
   <div class="header">
@@ -330,6 +353,11 @@
           </div>
         </div>
         <div class="tb-flag" id="tTbFlag" hidden>TIE-BREAK — primo a 7 punti, 2 di vantaggio</div>
+      </div>
+
+      <div class="card" id="sideMatchesWrap" hidden>
+        <div class="card-title">Partite in contemporanea</div>
+        <div id="sideMatchesList"></div>
       </div>
 
       <div class="card">
@@ -440,7 +468,7 @@
     </div>
   </div>
 
-  <div class="footer-note">BADBALL® è un marchio registrato · v1.3</div>
+  <div class="footer-note">BADBALL® è un marchio registrato · v1.4</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -455,7 +483,9 @@
 </div>
 
 
+
 <script>
+
 (function(){
   "use strict";
   var store = {
@@ -809,6 +839,106 @@
       return courts > 1 ? ('<div style="font-size:11px; color:var(--ink-soft); white-space:nowrap;">Campo ' + m.court + '</div>') : '';
     }
 
+    // ---------- PARTITE IN CONTEMPORANEA (campi non seguiti dal vivo) ----------
+    // La partita "principale" (tournament.idx per il girone, curMatchIdx per l'eliminazione)
+    // resta l'unica seguita punto su punto. Le altre partite dello stesso turno/round
+    // possono giocarsi in contemporanea su altri campi: qui si aggiorna solo il risultato
+    // a game, senza punteggio dal vivo. Un turno/round garantisce già che ogni giocatore
+    // compaia al massimo in una partita, quindi non serve altro controllo di conflitto.
+    function getSideMatches(){
+      if(!tournament || courts <= 1) return [];
+      var maxSide = courts - 1;
+      var out = [];
+      if(tournament.mode === 'girone'){
+        var mainRound = tournament.queue[tournament.idx].round;
+        for(var i=0;i<tournament.queue.length && out.length<maxSide;i++){
+          var m = tournament.queue[i];
+          if(i !== tournament.idx && m.round === mainRound && !m.played) out.push(m);
+        }
+      } else {
+        var round = tournament.rounds[tournament.curRoundIdx];
+        for(var j=0;j<round.length && out.length<maxSide;j++){
+          var rm = round[j];
+          if(j !== tournament.curMatchIdx && !rm.bye && !rm.played) out.push(rm);
+        }
+      }
+      return out;
+    }
+
+    function finishSideMatch(m){
+      if(m.sideA === m.sideB){
+        showToast('Serve un vincitore: il punteggio non può essere pari');
+        return;
+      }
+      var gamesA = m.sideA, gamesB = m.sideB;
+      if(tournament.mode === 'girone'){
+        var winnerItem = gamesA > gamesB ? m.a : m.b;
+        var loserItem = gamesA > gamesB ? m.b : m.a;
+        tournament.standings[winnerItem.label].w++;
+        tournament.standings[loserItem.label].l++;
+        tournament.standings[winnerItem.label].gf += Math.max(gamesA, gamesB);
+        tournament.standings[winnerItem.label].gs += Math.min(gamesA, gamesB);
+        tournament.standings[loserItem.label].gf += Math.min(gamesA, gamesB);
+        tournament.standings[loserItem.label].gs += Math.max(gamesA, gamesB);
+        m.played = true;
+        m.result = gamesA + '-' + gamesB;
+        renderStandings();
+        renderSchedule();
+      } else {
+        m.played = true;
+        m.result = gamesA + '-' + gamesB;
+        m.winner = gamesA > gamesB ? m.a : m.b;
+        renderBracket();
+      }
+      showToast('Campo ' + m.court + ': ' + m.a.label + ' ' + gamesA + '-' + gamesB + ' ' + m.b.label);
+      renderSideMatches();
+    }
+
+    function renderSideMatches(){
+      var wrap = document.getElementById('sideMatchesWrap');
+      var list = document.getElementById('sideMatchesList');
+      if(!wrap || !list) return;
+      var sideMatches = getSideMatches();
+      if(sideMatches.length === 0){
+        wrap.hidden = true;
+        list.innerHTML = '';
+        return;
+      }
+      wrap.hidden = false;
+      list.innerHTML = '';
+      sideMatches.forEach(function(m){
+        if(typeof m.sideA !== 'number') m.sideA = 0;
+        if(typeof m.sideB !== 'number') m.sideB = 0;
+        var card = document.createElement('div');
+        card.className = 'side-match-card';
+        card.innerHTML =
+          '<div class="side-match-head"><span class="court-chip">Campo ' + m.court + '</span></div>' +
+          '<div class="side-match-row">' +
+            '<div class="side-team"><span class="side-team-name">' + m.a.label + '</span>' +
+              '<div class="side-stepper"><button class="side-minus" data-side="A" aria-label="Meno game a ' + m.a.label + '">–</button><span class="side-val" data-val="A">' + m.sideA + '</span><button class="side-plus" data-side="A" aria-label="Più game a ' + m.a.label + '">+</button></div>' +
+            '</div>' +
+            '<div class="side-team"><span class="side-team-name">' + m.b.label + '</span>' +
+              '<div class="side-stepper"><button class="side-minus" data-side="B" aria-label="Meno game a ' + m.b.label + '">–</button><span class="side-val" data-val="B">' + m.sideB + '</span><button class="side-plus" data-side="B" aria-label="Più game a ' + m.b.label + '">+</button></div>' +
+            '</div>' +
+          '</div>' +
+          '<button class="btn ghost block side-finish-btn">Fine partita</button>';
+        var valA = card.querySelector('[data-val="A"]');
+        var valB = card.querySelector('[data-val="B"]');
+        Array.prototype.forEach.call(card.querySelectorAll('.side-minus, .side-plus'), function(btn){
+          btn.addEventListener('click', function(){
+            var side = btn.getAttribute('data-side');
+            var delta = btn.classList.contains('side-plus') ? 1 : -1;
+            if(side === 'A'){ m.sideA = Math.max(0, m.sideA + delta); valA.textContent = m.sideA; }
+            else { m.sideB = Math.max(0, m.sideB + delta); valB.textContent = m.sideB; }
+          });
+        });
+        card.querySelector('.side-finish-btn').addEventListener('click', function(){
+          finishSideMatch(m);
+        });
+        list.appendChild(card);
+      });
+    }
+
     function renderSchedule(){
       scheduleList.innerHTML = '';
       tournament.queue.forEach(function(m, i){
@@ -938,6 +1068,7 @@
       tProgressText.textContent = roundLabel(0, round.length) + (courts > 1 ? ' · Campo ' + m.court : '');
       if(engine) engine.resetForNewMatch();
       renderBracket();
+      renderSideMatches();
     }
     function onElimMatchEnd(winner, gamesA, gamesB, note){
       var round = tournament.rounds[tournament.curRoundIdx];
@@ -1005,6 +1136,14 @@
       tProgressText.textContent = 'Partita ' + (tournament.idx+1) + ' di ' + tournament.queue.length + ' · Turno ' + m.round + (courts > 1 ? ' · Campo ' + m.court : '');
       if(engine) engine.resetForNewMatch();
       renderSchedule();
+      renderSideMatches();
+    }
+
+    function nextUnplayedQueueIndex(fromIdx){
+      for(var i=fromIdx;i<tournament.queue.length;i++){
+        if(!tournament.queue[i].played) return i;
+      }
+      return -1;
     }
 
     function onTorneoMatchEnd(winner, gamesA, gamesB, note){
@@ -1021,7 +1160,8 @@
       m.result = gamesA + '-' + gamesB;
       renderStandings();
 
-      var isLast = tournament.idx >= tournament.queue.length - 1;
+      var nextIdx = nextUnplayedQueueIndex(tournament.idx + 1);
+      var isLast = nextIdx === -1;
       var noteText = 'ha vinto la partita ' + gamesA + ' a ' + gamesB + (note ? ' ' + note : '');
       showWinnerOverlay(winnerItem.label, noteText, isLast ? 'Vedi classifica finale' : 'Prossima partita', function(){
         if(isLast){
@@ -1031,8 +1171,9 @@
           tExportWaBtn.hidden = false;
           tExportWaBtn.onclick = function(){ openWhatsApp(buildGironeExportText()); };
           renderSchedule();
+          renderSideMatches();
         } else {
-          tournament.idx++;
+          tournament.idx = nextIdx;
           loadMatch();
         }
       });
@@ -1086,11 +1227,14 @@
       tExportWaBtn.hidden = true;
       torneoPlay.hidden = true;
       torneoSetup.hidden = false;
+      var sideWrap = document.getElementById('sideMatchesWrap');
+      if(sideWrap){ sideWrap.hidden = true; document.getElementById('sideMatchesList').innerHTML = ''; }
     });
 
     renderPlayers();
   })();
 })();
+
 </script>
 </body>
 </html>
