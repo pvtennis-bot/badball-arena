@@ -74,6 +74,7 @@
   .tab[aria-selected="true"]{background:var(--cork); color:var(--chalk);}
 
   .panel{display:flex; flex-direction:column; gap:16px;}
+  .panel[hidden]{display:none;} /* l'attributo "hidden" da solo non basta: senza questa regola il pannello inattivo resta visibile/cliccabile sotto */
   .card{
     background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:16px;
   }
@@ -170,14 +171,29 @@
   }
   .players{display:flex; flex-wrap:wrap; gap:8px;}
   .player-chip{
-    display:flex; align-items:center; gap:6px; background:var(--court-soft); color:var(--ink);
-    border-radius:999px; padding:6px 6px 6px 12px; font-size:13px; font-weight:600;
+    display:flex; align-items:center; gap:6px; background:var(--surface); color:var(--ink-soft);
+    border:1px solid var(--line); border-radius:999px; padding:6px 6px 6px 12px; font-size:13px; font-weight:600;
+    opacity:0.55; transition:background .15s ease, color .15s ease, opacity .15s ease, border-color .15s ease;
   }
+  .player-chip.selected{
+    background:var(--court-soft); color:var(--ink); border-color:transparent; opacity:1;
+  }
+  .player-chip span{cursor:pointer; -webkit-user-select:none; user-select:none;}
   .player-chip button{
     border:none; background:rgba(255,255,255,0.16); color:var(--ink); width:18px; height:18px;
-    border-radius:50%; font-size:11px; line-height:1; font-weight:800; padding:0;
+    border-radius:50%; font-size:11px; line-height:1; font-weight:800; padding:0; flex:none;
   }
   .empty-note{font-size:12px; color:var(--ink-soft); font-style:italic;}
+
+  .group-chip{
+    display:flex; align-items:center; gap:6px; background:var(--cork-soft); color:var(--ink);
+    border-radius:999px; padding:6px 6px 6px 12px; font-size:13px; font-weight:700;
+  }
+  .group-chip span{cursor:pointer; -webkit-user-select:none; user-select:none;}
+  .group-chip button{
+    border:none; background:rgba(255,255,255,0.16); color:var(--ink); width:18px; height:18px;
+    border-radius:50%; font-size:11px; line-height:1; font-weight:800; padding:0; flex:none;
+  }
 
   .segmented{display:flex; border:1px solid var(--line); border-radius:12px; overflow:hidden;}
   .segmented button{flex:1; border:none; background:var(--chalk); color:var(--ink-soft); font-weight:700; font-size:13px; padding:9px 6px; text-transform:uppercase; letter-spacing:0.3px;}
@@ -266,6 +282,22 @@
   .side-val{font-family:'Barlow Condensed',sans-serif; font-weight:900; font-size:20px; min-width:20px; text-align:center; font-variant-numeric:tabular-nums;}
   .side-finish-btn{font-size:11px; padding:8px 10px; margin-top:8px;}
 
+  /* Storico tornei */
+  .history-item{
+    background:var(--chalk); border:1px solid var(--line); border-radius:14px; padding:10px 12px;
+  }
+  .history-top{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px;}
+  .history-date{font-size:11px; color:var(--ink-soft); font-weight:600; letter-spacing:0.2px;}
+  .history-badge{
+    font-size:10px; font-weight:800; letter-spacing:0.3px; text-transform:uppercase; color:var(--chalk);
+    background:var(--cork); padding:3px 8px; border-radius:999px; white-space:nowrap;
+  }
+  .history-mid{font-size:12.5px; color:var(--ink); line-height:1.4;}
+  .history-item .btn.whatsapp{
+    width:100%; display:block; border-radius:6px; font-family:'Barlow Condensed',sans-serif;
+    text-transform:uppercase; letter-spacing:0.6px; font-weight:800; text-align:center;
+  }
+
   @media (prefers-reduced-motion: reduce){ *{transition:none !important;} }
 </style>
 </head>
@@ -292,12 +324,24 @@
 
     <!-- SETUP -->
     <div id="torneoSetup">
+      <div class="card" id="historyCardWrap" hidden>
+        <div class="card-title">Storico tornei</div>
+        <div id="historyList" style="display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto;"></div>
+        <button class="btn ghost block" id="clearHistoryBtn" style="margin-top:10px;">Cancella storico</button>
+      </div>
+
       <div class="card">
         <div class="card-title">Tipo di torneo</div>
         <div class="segmented" id="tTournamentSegmented">
           <button data-tournament="girone" aria-pressed="true">Girone all'italiana</button>
           <button data-tournament="eliminazione" aria-pressed="false">Eliminazione diretta</button>
         </div>
+      </div>
+
+      <div class="card" id="groupsCardWrap" hidden>
+        <div class="card-title">Gruppi salvati</div>
+        <div class="chip-row" id="groupsChipRow" style="margin-bottom:6px;"></div>
+        <div class="empty-note">Tocca un gruppo per selezionare subito quei giocatori · ✕ per eliminarlo.</div>
       </div>
 
       <div class="card">
@@ -307,7 +351,9 @@
           <button id="tAddPlayerBtn">Aggiungi</button>
         </div>
         <div class="players" id="tPlayerList" style="margin-top:10px;"></div>
-        <div class="empty-note" id="tEmptyNote">Aggiungi almeno 2 giocatori per iniziare.</div>
+        <div class="empty-note" style="margin-top:8px;">Tocca un nome per selezionarlo/deselezionarlo per il prossimo torneo · ✕ per rimuoverlo definitivamente.</div>
+        <div class="empty-note" id="tEmptyNote">Seleziona almeno 2 giocatori per iniziare.</div>
+        <button class="btn ghost block" id="saveGroupBtn" style="margin-top:10px;">💾 Salva selezione come gruppo</button>
       </div>
 
       <div class="card">
@@ -330,6 +376,21 @@
       </div>
 
       <button class="btn primary block" id="tStartBtn">Genera calendario e inizia</button>
+
+      <div class="card">
+        <div class="card-title">Backup dati</div>
+        <div class="empty-note" style="margin-bottom:10px;">Rubrica, gruppi e storico restano solo su questo dispositivo/browser. Esporta un backup ogni tanto (es. prima delle vacanze) per non perderli.</div>
+        <div class="btn-row">
+          <button class="btn ghost" id="exportBackupBtn">📤 Esporta backup</button>
+          <button class="btn ghost" id="importBackupBtn">📥 Importa file backup</button>
+        </div>
+        <input type="file" id="importBackupInput" hidden>
+        <div class="empty-note" id="importPasteToggle" style="margin-top:12px; text-decoration:underline; cursor:pointer;">Il file non si trova? Incolla qui il testo del backup</div>
+        <div id="importPasteWrap" hidden style="margin-top:8px;">
+          <textarea id="importPasteArea" placeholder="Incolla qui tutto il contenuto del file .json esportato" style="width:100%; min-height:90px; border:1px solid var(--line); border-radius:10px; padding:10px; font-size:12px; background:var(--chalk); color:var(--ink); font-family:monospace;"></textarea>
+          <button class="btn ghost block" id="importPasteBtn" style="margin-top:8px;">Importa da testo incollato</button>
+        </div>
+      </div>
     </div>
 
     <!-- PLAY -->
@@ -468,7 +529,7 @@
     </div>
   </div>
 
-  <div class="footer-note">BADBALL® è un marchio registrato · v1.4</div>
+  <div class="footer-note">BADBALL® è un marchio registrato · v1.7.1</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -685,8 +746,23 @@
     var torneoFinalBanner = document.getElementById('torneoFinalBanner');
     var torneoMatchCard = document.getElementById('torneoMatchCard');
     var tExportWaBtn = document.getElementById('tExportWaBtn');
+    var historyCardWrap = document.getElementById('historyCardWrap');
+    var historyList = document.getElementById('historyList');
+    var clearHistoryBtn = document.getElementById('clearHistoryBtn');
+    var groupsCardWrap = document.getElementById('groupsCardWrap');
+    var groupsChipRow = document.getElementById('groupsChipRow');
+    var saveGroupBtn = document.getElementById('saveGroupBtn');
+    var exportBackupBtn = document.getElementById('exportBackupBtn');
+    var importBackupBtn = document.getElementById('importBackupBtn');
+    var importBackupInput = document.getElementById('importBackupInput');
+    var importPasteToggle = document.getElementById('importPasteToggle');
+    var importPasteWrap = document.getElementById('importPasteWrap');
+    var importPasteArea = document.getElementById('importPasteArea');
+    var importPasteBtn = document.getElementById('importPasteBtn');
 
     var players = store.get('tPlayers', []);
+    var selectedPlayers = store.get('tSelectedPlayers', null);
+    if(selectedPlayers === null){ selectedPlayers = players.slice(); store.set('tSelectedPlayers', selectedPlayers); }
     var format = store.get('tFormat', 'singolo');
     var tournamentFormat = store.get('tTournamentFormat', 'girone');
     var courts = store.get('tCourts', 1);
@@ -718,28 +794,42 @@
       if(btn.dataset.tournament === tournamentFormat) btn.setAttribute('aria-pressed','true'); else btn.setAttribute('aria-pressed','false');
     });
 
+    function isPlayerSelected(name){ return selectedPlayers.indexOf(name) !== -1; }
+    function selectedPlayersList(){ return players.filter(isPlayerSelected); }
+
     function renderPlayers(){
       tPlayerList.innerHTML = '';
       players.forEach(function(name, idx){
         var chip = document.createElement('div');
-        chip.className = 'player-chip';
+        chip.className = 'player-chip' + (isPlayerSelected(name) ? ' selected' : '');
         var span = document.createElement('span');
         span.textContent = name;
+        span.addEventListener('click', function(){
+          var i = selectedPlayers.indexOf(name);
+          if(i === -1) selectedPlayers.push(name); else selectedPlayers.splice(i,1);
+          store.set('tSelectedPlayers', selectedPlayers);
+          renderPlayers();
+        });
         var btn = document.createElement('button');
         btn.textContent = '×';
         btn.setAttribute('aria-label', 'Rimuovi ' + name);
-        btn.addEventListener('click', function(){
+        btn.addEventListener('click', function(e){
+          e.stopPropagation();
           players.splice(idx,1);
+          var si = selectedPlayers.indexOf(name);
+          if(si !== -1) selectedPlayers.splice(si,1);
           store.set('tPlayers', players);
+          store.set('tSelectedPlayers', selectedPlayers);
           renderPlayers();
         });
         chip.appendChild(span); chip.appendChild(btn);
         tPlayerList.appendChild(chip);
       });
-      tEmptyNote.hidden = players.length >= 2;
-      var oddForDoubles = format === 'doppio' && (players.length < 4 || players.length % 2 !== 0);
+      var selectedCount = selectedPlayersList().length;
+      tEmptyNote.hidden = selectedCount >= 2;
+      var oddForDoubles = format === 'doppio' && (selectedCount < 4 || selectedCount % 2 !== 0);
       tDoublesWarning.hidden = !oddForDoubles;
-      var ok = format === 'doppio' ? (players.length >= 4 && players.length % 2 === 0) : players.length >= 2;
+      var ok = format === 'doppio' ? (selectedCount >= 4 && selectedCount % 2 === 0) : selectedCount >= 2;
       tStartBtn.disabled = !ok;
       tStartBtn.style.opacity = ok ? 1 : 0.5;
     }
@@ -747,10 +837,149 @@
       var v = tPlayerInput.value.trim();
       if(!v) return;
       players.push(v);
+      if(selectedPlayers.indexOf(v) === -1) selectedPlayers.push(v);
       store.set('tPlayers', players);
+      store.set('tSelectedPlayers', selectedPlayers);
       tPlayerInput.value = '';
       renderPlayers();
     }
+
+    // ---------- GRUPPI SALVATI (preset di selezione) ----------
+    function renderGroups(){
+      var groups = store.get('tGroups', []);
+      if(groups.length === 0){
+        groupsCardWrap.hidden = true;
+        groupsChipRow.innerHTML = '';
+        return;
+      }
+      groupsCardWrap.hidden = false;
+      groupsChipRow.innerHTML = '';
+      groups.forEach(function(group){
+        var chip = document.createElement('div');
+        chip.className = 'group-chip';
+        var span = document.createElement('span');
+        span.textContent = group.name;
+        span.addEventListener('click', function(){ applyGroup(group); });
+        var btn = document.createElement('button');
+        btn.textContent = '×';
+        btn.setAttribute('aria-label', 'Elimina gruppo ' + group.name);
+        btn.addEventListener('click', function(e){
+          e.stopPropagation();
+          if(confirm('Eliminare il gruppo "' + group.name + '"? La rubrica non viene toccata.')){
+            var updated = store.get('tGroups', []).filter(function(g){ return g.name !== group.name; });
+            store.set('tGroups', updated);
+            renderGroups();
+          }
+        });
+        chip.appendChild(span); chip.appendChild(btn);
+        groupsChipRow.appendChild(chip);
+      });
+    }
+    function applyGroup(group){
+      var matched = players.filter(function(name){ return group.players.indexOf(name) !== -1; });
+      selectedPlayers = matched.slice();
+      store.set('tSelectedPlayers', selectedPlayers);
+      renderPlayers();
+      if(matched.length < group.players.length){
+        showToast('Gruppo "' + group.name + '" caricato (alcuni giocatori non sono più in rubrica)');
+      } else {
+        showToast('Gruppo "' + group.name + '" selezionato');
+      }
+    }
+    saveGroupBtn.addEventListener('click', function(){
+      var chosen = selectedPlayersList();
+      if(chosen.length === 0){
+        showToast('Seleziona almeno un giocatore prima di salvare un gruppo');
+        return;
+      }
+      var name = prompt('Nome del gruppo (es. "1A", "Over60 lunedì"):');
+      if(name === null) return;
+      name = name.trim();
+      if(!name) return;
+      var groups = store.get('tGroups', []);
+      var existingIdx = groups.findIndex(function(g){ return g.name === name; });
+      if(existingIdx !== -1){
+        if(!confirm('Esiste già un gruppo "' + name + '". Sovrascriverlo con la selezione attuale?')) return;
+        groups[existingIdx] = { name: name, players: chosen };
+      } else {
+        groups.push({ name: name, players: chosen });
+      }
+      store.set('tGroups', groups);
+      renderGroups();
+      showToast('Gruppo "' + name + '" salvato');
+    });
+
+    // ---------- BACKUP / RIPRISTINO ----------
+    function collectBackupData(){
+      return {
+        tPlayers: store.get('tPlayers', []),
+        tSelectedPlayers: store.get('tSelectedPlayers', []),
+        tGroups: store.get('tGroups', []),
+        tHistory: store.get('tHistory', []),
+        tFormat: store.get('tFormat', 'singolo'),
+        tTournamentFormat: store.get('tTournamentFormat', 'girone'),
+        tCourts: store.get('tCourts', 1),
+        teamA: store.get('teamA', 'Squadra A'),
+        teamB: store.get('teamB', 'Squadra B')
+      };
+    }
+    exportBackupBtn.addEventListener('click', function(){
+      var payload = {
+        app: 'BADBALL Arena',
+        exportedAt: new Date().toISOString(),
+        data: collectBackupData()
+      };
+      var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      var d = new Date();
+      function pad(n){ return n < 10 ? '0'+n : ''+n; }
+      a.href = url;
+      a.download = 'badball-arena-backup-' + d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + '.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+      showToast('Backup esportato');
+    });
+    function applyBackupText(text){
+      var payload;
+      try { payload = JSON.parse(text); }
+      catch(e){ alert('Testo non valido: non è un backup BADBALL® leggibile.'); return; }
+      if(!payload || typeof payload !== 'object' || !payload.data){
+        alert('Testo non valido: non è un backup BADBALL® leggibile.');
+        return;
+      }
+      if(!confirm('Importare questo backup? Sovrascriverà rubrica, gruppi e storico attuali su questo dispositivo.')) return;
+      var d = payload.data;
+      store.set('tPlayers', Array.isArray(d.tPlayers) ? d.tPlayers : []);
+      store.set('tSelectedPlayers', Array.isArray(d.tSelectedPlayers) ? d.tSelectedPlayers : []);
+      store.set('tGroups', Array.isArray(d.tGroups) ? d.tGroups : []);
+      store.set('tHistory', Array.isArray(d.tHistory) ? d.tHistory : []);
+      if(d.tFormat) store.set('tFormat', d.tFormat);
+      if(d.tTournamentFormat) store.set('tTournamentFormat', d.tTournamentFormat);
+      if(typeof d.tCourts === 'number') store.set('tCourts', d.tCourts);
+      if(d.teamA) store.set('teamA', d.teamA);
+      if(d.teamB) store.set('teamB', d.teamB);
+      location.reload();
+    }
+    importBackupBtn.addEventListener('click', function(){ importBackupInput.click(); });
+    importBackupInput.addEventListener('change', function(){
+      var file = importBackupInput.files && importBackupInput.files[0];
+      importBackupInput.value = '';
+      if(!file) return;
+      var reader = new FileReader();
+      reader.onload = function(){ applyBackupText(reader.result); };
+      reader.readAsText(file);
+    });
+    importPasteToggle.addEventListener('click', function(){
+      importPasteWrap.hidden = !importPasteWrap.hidden;
+    });
+    importPasteBtn.addEventListener('click', function(){
+      var text = importPasteArea.value.trim();
+      if(!text){ showToast('Incolla prima il testo del backup'); return; }
+      applyBackupText(text);
+    });
     tAddPlayerBtn.addEventListener('click', addPlayer);
     tPlayerInput.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); addPlayer(); } });
 
@@ -796,10 +1025,11 @@
     }
 
     function buildParticipants(){
+      var chosen = selectedPlayersList();
       if(format === 'singolo'){
-        return players.map(function(name){ return { label: name }; });
+        return chosen.map(function(name){ return { label: name }; });
       }
-      var pool = shuffle(players);
+      var pool = shuffle(chosen);
       var teams = [];
       for(var i=0;i<pool.length;i+=2){
         teams.push({ label: pool[i] + ' & ' + pool[i+1] });
@@ -834,6 +1064,62 @@
       var lines = rows.map(function(r,i){ return (i+1) + '. ' + r.label + ' — ' + r.w + 'V ' + r.l + 'P (' + (r.diff>0?'+':'') + r.diff + ')'; });
       return '🏆 BADBALL® — Classifica finale girone\n\n' + lines.join('\n') + '\n\nwww.badball.it';
     }
+
+    function gironeWinnerLabel(){
+      var rows = Object.keys(tournament.standings).map(function(label){
+        var st = tournament.standings[label];
+        return { label: label, w: st.w, diff: st.gf - st.gs };
+      });
+      rows.sort(function(x,y){ if(y.w !== x.w) return y.w - x.w; return y.diff - x.diff; });
+      return rows.length ? rows[0].label : '—';
+    }
+
+    // ---------- STORICO TORNEI ----------
+    function formatHistoryDate(ts){
+      var d = new Date(ts);
+      function pad(n){ return n < 10 ? '0' + n : '' + n; }
+      return pad(d.getDate()) + '/' + pad(d.getMonth()+1) + '/' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+    function historyModeLabel(mode){ return mode === 'eliminazione' ? 'Eliminazione diretta' : "Girone all'italiana"; }
+    function renderHistory(){
+      var history = store.get('tHistory', []);
+      if(history.length === 0){
+        historyCardWrap.hidden = true;
+        historyList.innerHTML = '';
+        return;
+      }
+      historyCardWrap.hidden = false;
+      historyList.innerHTML = '';
+      history.forEach(function(entry){
+        var item = document.createElement('div');
+        item.className = 'history-item';
+        item.innerHTML =
+          '<div class="history-top"><span class="history-date">' + formatHistoryDate(entry.ts) + '</span><span class="history-badge">' + historyModeLabel(entry.mode) + '</span></div>' +
+          '<div class="history-mid">🏆 <b>' + entry.winner + '</b> · ' + entry.playersCount + ' giocatori · ' + (entry.format === 'doppio' ? 'Doppio' : 'Singolo') + '</div>';
+        var expBtn = document.createElement('button');
+        expBtn.className = 'btn whatsapp';
+        expBtn.style.marginTop = '8px';
+        expBtn.style.fontSize = '11px';
+        expBtn.style.padding = '8px 10px';
+        expBtn.textContent = 'Esporta su WhatsApp';
+        expBtn.addEventListener('click', function(){ openWhatsApp(entry.waText); });
+        item.appendChild(expBtn);
+        historyList.appendChild(item);
+      });
+    }
+    function saveHistoryEntry(entry){
+      var history = store.get('tHistory', []);
+      history.unshift(entry);
+      if(history.length > 30) history = history.slice(0, 30);
+      store.set('tHistory', history);
+      renderHistory();
+    }
+    clearHistoryBtn.addEventListener('click', function(){
+      if(confirm("Cancellare tutto lo storico dei tornei? L'operazione non è reversibile.")){
+        store.set('tHistory', []);
+        renderHistory();
+      }
+    });
 
     function courtLabel(m){
       return courts > 1 ? ('<div style="font-size:11px; color:var(--ink-soft); white-space:nowrap;">Campo ' + m.court + '</div>') : '';
@@ -1042,9 +1328,19 @@
           torneoMatchCard.hidden = true;
           torneoFinalBanner.hidden = false;
           torneoFinalBanner.textContent = '🏆 Campione del torneo: ' + tournament.champion.label;
+          var elimWaText = buildElimExportText();
           tExportWaBtn.hidden = false;
-          tExportWaBtn.onclick = function(){ openWhatsApp(buildElimExportText()); };
+          tExportWaBtn.onclick = function(){ openWhatsApp(elimWaText); };
           renderBracket();
+          renderSideMatches();
+          saveHistoryEntry({
+            ts: Date.now(),
+            mode: 'eliminazione',
+            format: format,
+            playersCount: tournament.participantsCount,
+            winner: tournament.champion.label,
+            waText: elimWaText
+          });
           return;
         }
         var next = buildNextRound(round);
@@ -1101,7 +1397,7 @@
       }
       assignCourts(round1);
       autoResolveByes(round1);
-      tournament = { mode:'eliminazione', rounds:[round1], champion:null, curRoundIdx:0, curMatchIdx:0 };
+      tournament = { mode:'eliminazione', rounds:[round1], champion:null, curRoundIdx:0, curMatchIdx:0, participantsCount: participants.length };
 
       torneoFinalBanner.hidden = true;
       tExportWaBtn.hidden = true;
@@ -1168,10 +1464,19 @@
           torneoMatchCard.hidden = true;
           torneoFinalBanner.hidden = false;
           torneoFinalBanner.textContent = '🏆 Girone terminato — classifica finale qui sotto';
+          var gironeWaText = buildGironeExportText();
           tExportWaBtn.hidden = false;
-          tExportWaBtn.onclick = function(){ openWhatsApp(buildGironeExportText()); };
+          tExportWaBtn.onclick = function(){ openWhatsApp(gironeWaText); };
           renderSchedule();
           renderSideMatches();
+          saveHistoryEntry({
+            ts: Date.now(),
+            mode: 'girone',
+            format: format,
+            playersCount: Object.keys(tournament.standings).length,
+            winner: gironeWinnerLabel(),
+            waText: gironeWaText
+          });
         } else {
           tournament.idx = nextIdx;
           loadMatch();
@@ -1232,6 +1537,8 @@
     });
 
     renderPlayers();
+    renderHistory();
+    renderGroups();
   })();
 })();
 
