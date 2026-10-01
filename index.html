@@ -369,6 +369,14 @@
         <div class="empty-note" id="tDoublesWarning" hidden style="margin-top:8px;">Per il doppio serve un numero pari di giocatori (min. 4).</div>
       </div>
 
+      <div class="card" id="pairsCardWrap" hidden>
+        <div class="card-title">Coppie fisse (facoltativo)</div>
+        <div class="empty-note" style="margin-bottom:8px;">Tocca 2 giocatori per formare una coppia che giocherà sempre insieme. Gli altri vengono abbinati a sorteggio come prima.</div>
+        <div class="chip-row" id="pairPickRow" style="margin-bottom:6px;"></div>
+        <button class="btn ghost block" id="makePairBtn" disabled>Conferma coppia selezionata</button>
+        <div class="chip-row" id="pairsChipRow" style="margin-top:10px;"></div>
+      </div>
+
       <div class="card">
         <div class="card-title">Campi disponibili</div>
         <div class="stepper">
@@ -560,7 +568,7 @@
     </div>
   </div>
 
-  <div class="footer-note">BADBALL® è un marchio registrato · v1.9.4</div>
+  <div class="footer-note">BADBALL® è un marchio registrato · v2.0</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -795,11 +803,17 @@
     var importFileWrap = document.getElementById('importFileWrap');
     var importPasteArea = document.getElementById('importPasteArea');
     var importPasteBtn = document.getElementById('importPasteBtn');
+    var pairsCardWrap = document.getElementById('pairsCardWrap');
+    var pairPickRow = document.getElementById('pairPickRow');
+    var makePairBtn = document.getElementById('makePairBtn');
+    var pairsChipRow = document.getElementById('pairsChipRow');
 
     var players = store.get('tPlayers', []);
     var selectedPlayers = store.get('tSelectedPlayers', null);
     if(selectedPlayers === null){ selectedPlayers = players.slice(); store.set('tSelectedPlayers', selectedPlayers); }
     var format = store.get('tFormat', 'singolo');
+    var fixedPairs = store.get('tFixedPairs', []); // array di [nomeA, nomeB]: coppie fisse per il doppio
+    var pendingPairPick = []; // nomi in corso di abbinamento (max 2) nella card "Coppie fisse"
     var tournamentFormat = store.get('tTournamentFormat', 'girone');
     var courts = store.get('tCourts', 1);
     var tournament = null;
@@ -860,6 +874,9 @@
           if(si !== -1) selectedPlayers.splice(si,1);
           store.set('tPlayers', players);
           store.set('tSelectedPlayers', selectedPlayers);
+          var pairsBefore = fixedPairs.length;
+          fixedPairs = fixedPairs.filter(function(p){ return p[0] !== name && p[1] !== name; });
+          if(fixedPairs.length !== pairsBefore) store.set('tFixedPairs', fixedPairs);
           renderPlayers();
         });
         chip.appendChild(span); chip.appendChild(btn);
@@ -872,7 +889,76 @@
       var ok = format === 'doppio' ? (selectedCount >= 4 && selectedCount % 2 === 0) : selectedCount >= 2;
       tStartBtn.disabled = !ok;
       tStartBtn.style.opacity = ok ? 1 : 0.5;
+      renderPairs();
     }
+
+    // ---------- COPPIE FISSE (doppio) ----------
+    function pairedPlayersSet(){
+      var s = [];
+      fixedPairs.forEach(function(p){ s.push(p[0], p[1]); });
+      return s;
+    }
+    function renderPairs(){
+      pairsCardWrap.hidden = format !== 'doppio';
+      if(format !== 'doppio') return;
+
+      var paired = pairedPlayersSet();
+      var available = selectedPlayersList().filter(function(n){ return paired.indexOf(n) === -1; });
+      pendingPairPick = pendingPairPick.filter(function(n){ return available.indexOf(n) !== -1; });
+
+      pairPickRow.innerHTML = '';
+      available.forEach(function(name){
+        var chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'chip';
+        chip.textContent = name;
+        chip.setAttribute('aria-pressed', pendingPairPick.indexOf(name) !== -1 ? 'true' : 'false');
+        chip.addEventListener('click', function(){
+          var i = pendingPairPick.indexOf(name);
+          if(i !== -1){ pendingPairPick.splice(i,1); }
+          else {
+            if(pendingPairPick.length >= 2) pendingPairPick.shift();
+            pendingPairPick.push(name);
+          }
+          renderPairs();
+        });
+        pairPickRow.appendChild(chip);
+      });
+      if(available.length === 0){
+        var note = document.createElement('div');
+        note.className = 'empty-note';
+        note.textContent = fixedPairs.length > 0 ? 'Tutti i giocatori selezionati sono già in una coppia fissa.' : 'Nessun giocatore disponibile.';
+        pairPickRow.appendChild(note);
+      }
+      makePairBtn.disabled = pendingPairPick.length !== 2;
+
+      pairsChipRow.innerHTML = '';
+      fixedPairs.forEach(function(pair, idx){
+        var chip = document.createElement('div');
+        chip.className = 'group-chip';
+        var span = document.createElement('span');
+        span.textContent = pair[0] + ' & ' + pair[1];
+        var btn = document.createElement('button');
+        btn.textContent = '×';
+        btn.setAttribute('aria-label', 'Sciogli coppia ' + pair[0] + ' & ' + pair[1]);
+        btn.addEventListener('click', function(){
+          fixedPairs.splice(idx,1);
+          store.set('tFixedPairs', fixedPairs);
+          renderPairs();
+          showToast('Coppia sciolta');
+        });
+        chip.appendChild(span); chip.appendChild(btn);
+        pairsChipRow.appendChild(chip);
+      });
+    }
+    makePairBtn.addEventListener('click', function(){
+      if(pendingPairPick.length !== 2) return;
+      fixedPairs.push([pendingPairPick[0], pendingPairPick[1]]);
+      store.set('tFixedPairs', fixedPairs);
+      pendingPairPick = [];
+      renderPairs();
+      showToast('Coppia creata');
+    });
     function addPlayer(){
       var v = tPlayerInput.value.trim();
       if(!v) return;
@@ -961,6 +1047,7 @@
         tPlayers: store.get('tPlayers', []),
         tSelectedPlayers: store.get('tSelectedPlayers', []),
         tGroups: store.get('tGroups', []),
+        tFixedPairs: store.get('tFixedPairs', []),
         tHistory: store.get('tHistory', []),
         tFormat: store.get('tFormat', 'singolo'),
         tTournamentFormat: store.get('tTournamentFormat', 'girone'),
@@ -1041,6 +1128,7 @@
       store.set('tPlayers', Array.isArray(d.tPlayers) ? d.tPlayers : []);
       store.set('tSelectedPlayers', Array.isArray(d.tSelectedPlayers) ? d.tSelectedPlayers : []);
       store.set('tGroups', Array.isArray(d.tGroups) ? d.tGroups : []);
+      store.set('tFixedPairs', Array.isArray(d.tFixedPairs) ? d.tFixedPairs : []);
       store.set('tHistory', Array.isArray(d.tHistory) ? d.tHistory : []);
       if(d.tFormat) store.set('tFormat', d.tFormat);
       if(d.tTournamentFormat) store.set('tTournamentFormat', d.tTournamentFormat);
@@ -1133,12 +1221,22 @@
       if(format === 'singolo'){
         return chosen.map(function(name){ return { label: name }; });
       }
-      var pool = shuffle(chosen);
       var teams = [];
+      var used = [];
+      // Coppie fisse: restano insieme se entrambi sono tra i selezionati di questo torneo.
+      fixedPairs.forEach(function(p){
+        if(chosen.indexOf(p[0]) !== -1 && chosen.indexOf(p[1]) !== -1 && used.indexOf(p[0]) === -1 && used.indexOf(p[1]) === -1){
+          teams.push({ label: p[0] + ' & ' + p[1] });
+          used.push(p[0], p[1]);
+        }
+      });
+      // Il resto viene sorteggiato come prima.
+      var remaining = chosen.filter(function(n){ return used.indexOf(n) === -1; });
+      var pool = shuffle(remaining);
       for(var i=0;i<pool.length;i+=2){
         teams.push({ label: pool[i] + ' & ' + pool[i+1] });
       }
-      return teams;
+      return shuffle(teams);
     }
 
     function renderStandings(){
